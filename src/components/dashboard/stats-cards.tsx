@@ -8,11 +8,11 @@ import { collection, onSnapshot } from 'firebase/firestore';
 
 
 interface StatsCardsProps {
-  books: Book[];
-  readers: Reader[];
+  initialBooks: Book[];
+  initialReaders: Reader[];
 }
 
-export default function StatsCards({ books: initialBooks, readers: initialReaders }: StatsCardsProps) {
+export default function StatsCards({ initialBooks, initialReaders }: StatsCardsProps) {
   const [books, setBooks] = useState(initialBooks);
   const [readers, setReaders] = useState(initialReaders);
 

@@ -13,11 +13,11 @@ import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestor
 
 
 interface OverdueBooksProps {
-  books: Book[];
-  readers: Reader[];
+  initialBooks: Book[];
+  initialReaders: Reader[];
 }
 
-export default function OverdueBooks({ books: initialBooks, readers: initialReaders }: OverdueBooksProps) {
+export default function OverdueBooks({ initialBooks, initialReaders }: OverdueBooksProps) {
   const { toast } = useToast();
   const [books, setBooks] = useState(initialBooks);
   const [readers, setReaders] = useState(initialReaders);

@@ -30,7 +30,7 @@ export default async function ReadersPage() {
                 <h1 className="text-4xl font-bold font-headline text-primary">Reader Management</h1>
                 <p className="text-muted-foreground mt-2">
                     Manage member profiles and their borrowing history.
-                p>
+                </p>
             </header>
             <ReaderActions initialReaders={readers} initialBooks={books} />
         </div>

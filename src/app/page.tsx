@@ -30,9 +30,9 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      <StatsCards books={books} readers={readers} />
+      <StatsCards initialBooks={books} initialReaders={readers} />
 
-      <OverdueBooks books={books} readers={readers} />
+      <OverdueBooks initialBooks={books} initialReaders={readers} />
     </div>
   );
 }
