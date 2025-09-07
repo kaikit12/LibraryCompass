@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Book, Reader } from "@/lib/types";
-import { genres, initialReaders as allReaders } from "@/lib/data";
+import { genres } from "@/lib/data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, PlusCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { addDays, format, formatISO, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { db } from "@/lib/firebase";
+import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 
 interface BookActionsProps {
   initialBooks: Book[];
@@ -35,7 +37,22 @@ export function BookActions({ initialBooks, initialReaders }: BookActionsProps) 
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [editingBook, setEditingBook] = useState<Partial<Book> | null>(null);
   const [selectedReaderId, setSelectedReaderId] = useState<string>('');
+  
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "books"), (snapshot) => {
+      const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+      setBooks(liveBooks);
+    });
+    return () => unsubscribe();
+  }, []);
 
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "readers"), (snapshot) => {
+      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+      setReaders(liveReaders);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const filteredBooks = useMemo(() => {
     return books.filter(book => {
@@ -56,35 +73,46 @@ export function BookActions({ initialBooks, initialReaders }: BookActionsProps) 
     setIsAddEditOpen(true);
   }
   
-  const handleSaveBook = () => {
+  const handleSaveBook = async () => {
     if (!editingBook?.title || !editingBook?.author || !editingBook?.genre) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.'});
       return;
     }
 
-    if (editingBook.id) {
-      // Edit
-      setBooks(books.map(b => b.id === editingBook!.id ? {...b, ...editingBook} as Book : b));
-      toast({ title: 'Book Updated', description: `"${editingBook.title}" has been updated.`});
-    } else {
-      // Add
-      const newBook: Book = {
-        id: `book-${Date.now()}`,
-        title: editingBook.title,
-        author: editingBook.author,
-        genre: editingBook.genre,
-        status: 'Available'
-      };
-      setBooks([newBook, ...books]);
-      toast({ title: 'Book Added', description: `"${newBook.title}" has been added to the library.`});
+    try {
+      if (editingBook.id) {
+        // Edit
+        const bookRef = doc(db, 'books', editingBook.id);
+        await updateDoc(bookRef, {
+            title: editingBook.title,
+            author: editingBook.author,
+            genre: editingBook.genre,
+        });
+        toast({ title: 'Book Updated', description: `"${editingBook.title}" has been updated.`});
+      } else {
+        // Add
+        await addDoc(collection(db, 'books'), {
+            title: editingBook.title,
+            author: editingBook.author,
+            genre: editingBook.genre,
+            status: 'Available'
+        });
+        toast({ title: 'Book Added', description: `"${editingBook.title}" has been added to the library.`});
+      }
+      setIsAddEditOpen(false);
+      setEditingBook(null);
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error', description: 'There was a problem saving the book.'});
     }
-    setIsAddEditOpen(false);
-    setEditingBook(null);
   }
 
-  const handleDeleteBook = (bookId: string) => {
-    setBooks(books.filter(b => b.id !== bookId));
-    toast({ title: 'Book Deleted', description: 'The book has been removed from the library.'});
+  const handleDeleteBook = async (bookId: string) => {
+    try {
+      await deleteDoc(doc(db, 'books', bookId));
+      toast({ title: 'Book Deleted', description: 'The book has been removed from the library.'});
+    } catch (error) {
+       toast({ variant: 'destructive', title: 'Error', description: 'Could not delete book.'});
+    }
   }
 
   const handleOpenBorrow = (book: Book) => {
@@ -93,28 +121,42 @@ export function BookActions({ initialBooks, initialReaders }: BookActionsProps) 
     setIsBorrowOpen(true);
   };
 
-  const handleConfirmBorrow = () => {
+  const handleConfirmBorrow = async () => {
     if (!selectedBook || !selectedReaderId) return;
     
-    const dueDate = addDays(new Date(), 14);
-    setBooks(books.map(b => b.id === selectedBook.id ? { ...b, status: 'Borrowed', borrowedBy: selectedReaderId, dueDate: formatISO(dueDate) } : b));
-
-    // Also update reader's history - for prototype, this is a simplified update
-    const reader = readers.find(r => r.id === selectedReaderId);
-    if(reader && !reader.borrowingHistory.includes(selectedBook.title)) {
-        setReaders(readers.map(r => r.id === selectedReaderId ? {...r, borrowingHistory: [...r.borrowingHistory, selectedBook.title]} : r));
+    try {
+        const response = await fetch('/api/borrow', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookId: selectedBook.id, readerId: selectedReaderId }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        
+        const reader = readers.find(r => r.id === selectedReaderId);
+        toast({ title: 'Book Borrowed', description: `"${selectedBook.title}" borrowed by ${reader?.name}.`});
+        setIsBorrowOpen(false);
+        setSelectedBook(null);
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Borrow Failed', description: error.message});
     }
-
-    toast({ title: 'Book Borrowed', description: `"${selectedBook.title}" borrowed by ${reader?.name}.`});
-    setIsBorrowOpen(false);
-    setSelectedBook(null);
   };
 
-  const handleReturnBook = (bookId: string) => {
-    const book = books.find(b => b.id === bookId);
-    if (!book) return;
-    setBooks(books.map(b => b.id === bookId ? { ...b, status: 'Available', borrowedBy: undefined, dueDate: undefined } : b));
-    toast({ title: 'Book Returned', description: `"${book.title}" has been returned.`});
+  const handleReturnBook = async (book: Book) => {
+    if (!book.borrowedBy) return;
+    try {
+        const response = await fetch('/api/return', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookId: book.id, readerId: book.borrowedBy }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+
+        toast({ title: 'Book Returned', description: `"${book.title}" has been returned.`});
+    } catch (error: any) {
+         toast({ variant: 'destructive', title: 'Return Failed', description: error.message});
+    }
   };
 
   const getReaderName = (readerId?: string) => {
@@ -136,8 +178,8 @@ export function BookActions({ initialBooks, initialReaders }: BookActionsProps) 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="available">Available</SelectItem>
-                <SelectItem value="borrowed">Borrowed</SelectItem>
+                <SelectItem value="Available">Available</SelectItem>
+                <SelectItem value="Borrowed">Borrowed</SelectItem>
               </SelectContent>
             </Select>
             <Select value={genreFilter} onValueChange={setGenreFilter}>
@@ -175,7 +217,7 @@ export function BookActions({ initialBooks, initialReaders }: BookActionsProps) 
                 <TableCell>{book.author}</TableCell>
                 <TableCell><Badge variant="secondary">{book.genre}</Badge></TableCell>
                 <TableCell>
-                  <Badge variant={book.status === 'Available' ? 'default' : 'outline'} className={book.status === 'Available' ? 'bg-green-500/20 text-green-700' : ''}>
+                  <Badge variant={book.status === 'Available' ? 'default' : 'destructive'} className={book.status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                     {book.status}
                   </Badge>
                 </TableCell>
@@ -194,7 +236,7 @@ export function BookActions({ initialBooks, initialReaders }: BookActionsProps) 
                       {book.status === 'Available' ? (
                         <DropdownMenuItem onClick={() => handleOpenBorrow(book)}>Borrow</DropdownMenuItem>
                       ) : (
-                        <DropdownMenuItem onClick={() => handleReturnBook(book.id)}>Return</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleReturnBook(book)}>Return</DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => handleOpenEdit(book)}>Edit</DropdownMenuItem>

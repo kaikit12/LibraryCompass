@@ -1,8 +1,26 @@
-import { initialBooks, initialReaders } from '@/lib/data';
 import StatsCards from '@/components/dashboard/stats-cards';
 import OverdueBooks from '@/components/dashboard/overdue-books';
+import { db } from '@/lib/firebase';
+import type { Book, Reader } from '@/lib/types';
+import { collection, getDocs } from 'firebase/firestore';
 
-export default function DashboardPage() {
+async function getData() {
+  const booksCollection = collection(db, 'books');
+  const readersCollection = collection(db, 'readers');
+
+  const bookSnapshot = await getDocs(booksCollection);
+  const readerSnapshot = await getDocs(readersCollection);
+
+  const books = bookSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+  const readers = readerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+
+  return { books, readers };
+}
+
+
+export default async function DashboardPage() {
+  const { books, readers } = await getData();
+  
   return (
     <div className="space-y-8">
       <header>
@@ -12,9 +30,9 @@ export default function DashboardPage() {
         </p>
       </header>
 
-      <StatsCards books={initialBooks} readers={initialReaders} />
+      <StatsCards books={books} readers={readers} />
 
-      <OverdueBooks books={initialBooks} readers={initialReaders} />
+      <OverdueBooks books={books} readers={readers} />
     </div>
   );
 }

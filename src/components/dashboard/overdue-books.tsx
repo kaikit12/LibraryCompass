@@ -1,4 +1,5 @@
 "use client"
+import { useState, useEffect } from 'react';
 import { Book, Reader } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, parseISO } from 'date-fns';
 import { Bell } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+
 
 interface OverdueBooksProps {
   books: Book[];
@@ -15,13 +19,29 @@ interface OverdueBooksProps {
 
 export default function OverdueBooks({ books: initialBooks, readers: initialReaders }: OverdueBooksProps) {
   const { toast } = useToast();
+  const [books, setBooks] = useState(initialBooks);
+  const [readers, setReaders] = useState(initialReaders);
 
-  const overdueBooks = initialBooks.filter(book => 
+  useEffect(() => {
+    const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
+      setBooks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book)));
+    });
+     const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+      setReaders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader)));
+    });
+
+    return () => {
+        unsubscribeBooks();
+        unsubscribeReaders();
+    };
+  }, []);
+
+  const overdueBooks = books.filter(book => 
     book.status === 'Borrowed' && book.dueDate && new Date(book.dueDate) < new Date()
   );
 
   const getReaderName = (readerId?: string) => {
-    return initialReaders.find(r => r.id === readerId)?.name || 'Unknown Reader';
+    return readers.find(r => r.id === readerId)?.name || 'Unknown Reader';
   };
   
   const handleNotify = (bookTitle: string, readerName: string) => {

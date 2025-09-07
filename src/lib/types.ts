@@ -14,4 +14,6 @@ export interface Reader {
   email: string;
   phone: string;
   borrowingHistory: string[]; // array of book titles
+  booksOut: number;
+  borrowedBooks: string[];
 }
