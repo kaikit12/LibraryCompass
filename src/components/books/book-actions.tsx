@@ -20,13 +20,11 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 
 interface BookActionsProps {
-  initialBooks: Book[];
-  initialReaders: Reader[];
 }
 
-export function BookActions({ initialBooks, initialReaders }: BookActionsProps) {
-  const [books, setBooks] = useState<Book[]>(initialBooks);
-  const [readers, setReaders] = useState<Reader[]>(initialReaders);
+export function BookActions({ }: BookActionsProps) {
+  const [books, setBooks] = useState<Book[]>([]);
+  const [readers, setReaders] = useState<Reader[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [genreFilter, setGenreFilter] = useState("all");
@@ -40,7 +38,14 @@ export function BookActions({ initialBooks, initialReaders }: BookActionsProps) 
   
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "books"), (snapshot) => {
-      const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+      const liveBooks = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+              id: doc.id, 
+              ...data,
+              dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
+          } as Book
+      });
       setBooks(liveBooks);
     });
     return () => unsubscribe();

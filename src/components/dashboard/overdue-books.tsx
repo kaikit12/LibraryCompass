@@ -13,18 +13,24 @@ import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestor
 
 
 interface OverdueBooksProps {
-  initialBooks: Book[];
-  initialReaders: Reader[];
 }
 
-export default function OverdueBooks({ initialBooks, initialReaders }: OverdueBooksProps) {
+export default function OverdueBooks({ }: OverdueBooksProps) {
   const { toast } = useToast();
-  const [books, setBooks] = useState(initialBooks);
-  const [readers, setReaders] = useState(initialReaders);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [readers, setReaders] = useState<Reader[]>([]);
 
   useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
-      setBooks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book)));
+       const liveBooks = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+              id: doc.id, 
+              ...data,
+              dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
+          } as Book
+      });
+      setBooks(liveBooks);
     });
      const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
       setReaders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader)));

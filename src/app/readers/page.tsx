@@ -11,7 +11,14 @@ async function getData() {
   const bookSnapshot = await getDocs(booksCollection);
   const readerSnapshot = await getDocs(readersCollection);
 
-  const books = bookSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+  const books = bookSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return { 
+          id: doc.id, 
+          ...data,
+          dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
+      } as Book
+  });
   const readers = readerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
 
   // This is a simple way to populate borrowing history on readers based on book data for the prototype
@@ -23,7 +30,7 @@ async function getData() {
 }
 
 export default async function ReadersPage() {
-    const { books, readers } = await getData();
+    
     return (
         <div className="space-y-8">
             <header>
@@ -32,7 +39,7 @@ export default async function ReadersPage() {
                     Manage member profiles and their borrowing history.
                 </p>
             </header>
-            <ReaderActions initialReaders={readers} initialBooks={books} />
+            <ReaderActions />
         </div>
     );
 }

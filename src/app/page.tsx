@@ -11,7 +11,14 @@ async function getData() {
   const bookSnapshot = await getDocs(booksCollection);
   const readerSnapshot = await getDocs(readersCollection);
 
-  const books = bookSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+  const books = bookSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return { 
+          id: doc.id, 
+          ...data,
+          dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
+      } as Book
+  });
   const readers = readerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
 
   return { books, readers };
@@ -19,7 +26,6 @@ async function getData() {
 
 
 export default async function DashboardPage() {
-  const { books, readers } = await getData();
   
   return (
     <div className="space-y-8">
@@ -30,9 +36,9 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      <StatsCards initialBooks={books} initialReaders={readers} />
+      <StatsCards />
 
-      <OverdueBooks initialBooks={books} initialReaders={readers} />
+      <OverdueBooks />
     </div>
   );
 }
