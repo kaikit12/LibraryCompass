@@ -26,8 +26,7 @@ export async function POST(request: Request) {
       }
       
       const bookData = bookDoc.data();
-      const readerData = readerDoc.data();
-
+      
       if (bookData.status === 'Borrowed') {
         throw new Error('Book is already borrowed.');
       }
@@ -42,10 +41,8 @@ export async function POST(request: Request) {
       });
 
       // Update reader
-      const newBooksOut = (readerData.booksOut || 0) + 1;
-      
       transaction.update(readerRef, {
-        booksOut: newBooksOut,
+        booksOut: FieldValue.increment(1),
         borrowedBooks: FieldValue.arrayUnion(bookId)
       });
     });

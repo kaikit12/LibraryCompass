@@ -59,7 +59,6 @@ export function ReaderActions({ }: ReaderActionsProps) {
   const enrichedReaders = useMemo(() => {
     if (!readers.length || !books.length) return [];
     
-    // Create a map of book IDs to titles for efficient lookup
     const bookTitleMap = new Map(books.map(book => [book.id, book.title]));
 
     return readers.map(reader => {
@@ -69,7 +68,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
         return {
             ...reader,
-            borrowingHistory: borrowedBookTitles, // This is a new field for display purposes
+            borrowingHistory: borrowedBookTitles,
         }
     });
   }, [readers, books]);
@@ -82,7 +81,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
   }, [enrichedReaders, searchTerm]);
 
   const getBorrowedBooksCount = (readerId: string) => {
-    return books.filter(b => b.borrowedBy === readerId).length;
+    return readers.find(r => r.id === readerId)?.booksOut || 0;
   }
 
   const handleOpenAdd = () => {
@@ -109,7 +108,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 email: editingReader.email,
                 phone: editingReader.phone || '',
             });
-            toast({ title: 'Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
+            toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
         } else {
             await addDoc(collection(db, 'readers'), {
                 name: editingReader.name,
@@ -118,27 +117,28 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 booksOut: 0,
                 borrowedBooks: [],
             });
-            toast({ title: 'Reader Added', description: `${editingReader.name} has been added.`});
+            toast({ title: '✅ Reader Added', description: `${editingReader.name} has been added.`});
         }
         setIsAddEditOpen(false);
         setEditingReader(null);
 
     } catch(error) {
-        toast({ variant: 'destructive', title: 'Error', description: 'There was a problem saving the reader.'});
+        toast({ variant: 'destructive', title: '❌ Error', description: 'There was a problem saving the reader.'});
     }
   };
 
   const handleDeleteReader = async (readerId: string) => {
-    if (books.some(b => b.borrowedBy === readerId)) {
+    const reader = readers.find(r => r.id === readerId);
+    if (reader && reader.booksOut > 0) {
         toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot delete reader with borrowed books.'});
         return;
     }
     
     try {
         await deleteDoc(doc(db, 'readers', readerId));
-        toast({ title: 'Reader Deleted', description: 'The reader has been removed from the system.'});
+        toast({ title: '✅ Reader Deleted', description: 'The reader has been removed from the system.'});
     } catch(error) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete reader.'});
+        toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete reader.'});
     }
   };
 
@@ -176,7 +176,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 <TableRow key={reader.id}>
                     <TableCell className="font-medium">{reader.name}</TableCell>
                     <TableCell>{reader.email}</TableCell>
-                    <TableCell>{reader.phone}</TableCell>
+                    <TableCell>{reader.phone || 'N/A'}</TableCell>
                     <TableCell>
                     <Badge variant="outline">{getBorrowedBooksCount(reader.id)}</Badge>
                     </TableCell>
