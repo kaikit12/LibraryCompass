@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, FieldValue } from 'firebase/firestore';
+import { doc, runTransaction, increment, arrayUnion } from 'firebase/firestore';
 import { addDays, formatISO } from 'date-fns';
 
 export async function POST(request: Request) {
@@ -42,8 +42,8 @@ export async function POST(request: Request) {
 
       // Update reader
       transaction.update(readerRef, {
-        booksOut: FieldValue.increment(1),
-        borrowedBooks: FieldValue.arrayUnion(bookId)
+        booksOut: increment(1),
+        borrowedBooks: arrayUnion(bookId)
       });
     });
 
