@@ -80,7 +80,7 @@ export function BookActions({ }: BookActionsProps) {
   
   const handleSaveBook = async () => {
     if (!editingBook?.title || !editingBook?.author || !editingBook?.genre) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.'});
+      toast({ variant: 'destructive', title: '❌ Error', description: 'Please fill all required fields.'});
       return;
     }
 
@@ -93,7 +93,7 @@ export function BookActions({ }: BookActionsProps) {
             author: editingBook.author,
             genre: editingBook.genre,
         });
-        toast({ title: 'Book Updated', description: `"${editingBook.title}" has been updated.`});
+        toast({ title: '✅ Book Updated', description: `"${editingBook.title}" has been updated.`});
       } else {
         // Add
         await addDoc(collection(db, 'books'), {
@@ -102,21 +102,21 @@ export function BookActions({ }: BookActionsProps) {
             genre: editingBook.genre,
             status: 'Available'
         });
-        toast({ title: 'Book Added', description: `"${editingBook.title}" has been added to the library.`});
+        toast({ title: '✅ Book Added', description: `"${editingBook.title}" has been added to the library.`});
       }
       setIsAddEditOpen(false);
       setEditingBook(null);
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'There was a problem saving the book.'});
+      toast({ variant: 'destructive', title: '❌ Error', description: 'There was a problem saving the book.'});
     }
   }
 
   const handleDeleteBook = async (bookId: string) => {
     try {
       await deleteDoc(doc(db, 'books', bookId));
-      toast({ title: 'Book Deleted', description: 'The book has been removed from the library.'});
+      toast({ title: '✅ Book Deleted', description: 'The book has been removed from the library.'});
     } catch (error) {
-       toast({ variant: 'destructive', title: 'Error', description: 'Could not delete book.'});
+       toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete book.'});
     }
   }
 
@@ -139,11 +139,11 @@ export function BookActions({ }: BookActionsProps) {
         if (!response.ok) throw new Error(data.message);
         
         const reader = readers.find(r => r.id === selectedReaderId);
-        toast({ title: 'Book Borrowed', description: `"${selectedBook.title}" borrowed by ${reader?.name}.`});
+        toast({ title: '✅ Borrow successful!', description: `"${selectedBook.title}" borrowed by ${reader?.name}.`});
         setIsBorrowOpen(false);
         setSelectedBook(null);
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Borrow Failed', description: error.message});
+        toast({ variant: 'destructive', title: '❌ Borrow failed', description: error.message});
     }
   };
 
@@ -158,9 +158,9 @@ export function BookActions({ }: BookActionsProps) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message);
 
-        toast({ title: 'Book Returned', description: `"${book.title}" has been returned.`});
+        toast({ title: '✅ Return successful!', description: `"${book.title}" has been returned.`});
     } catch (error: any) {
-         toast({ variant: 'destructive', title: 'Return Failed', description: error.message});
+         toast({ variant: 'destructive', title: '❌ Return failed', description: error.message});
     }
   };
 
