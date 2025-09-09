@@ -59,6 +59,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
   const enrichedReaders = useMemo(() => {
       if (!readers.length || !books.length) return [];
       return readers.map(reader => {
+          // Now correctly maps book IDs to book titles for the borrowing history.
           const readerBooks = (reader.borrowedBooks || []).map(bookId => {
               return books.find(b => b.id === bookId)?.title;
           }).filter((t): t is string => !!t);
