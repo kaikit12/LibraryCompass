@@ -15,5 +15,5 @@ export interface Reader {
   phone: string;
   borrowingHistory?: string[]; // array of book titles
   booksOut: number;
-  borrowedBooks: string[];
+  borrowedBooks: string[]; // array of book ids
 }

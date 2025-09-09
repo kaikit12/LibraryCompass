@@ -17,18 +17,19 @@ export async function POST(request: Request) {
         const bookDoc = await transaction.get(bookRef);
         const readerDoc = await transaction.get(readerRef);
 
-        if (!bookDoc.exists()) {
-            throw new Error('Book not found.');
+        if (!bookDoc.exists() || !readerDoc.exists()) {
+            // Throw a specific error to be caught and handled with a 400 status
+            const error = new Error('Return not found');
+            (error as any).status = 400;
+            throw error;
         }
-        if (!readerDoc.exists()) {
-            throw new Error('Reader not found.');
-        }
-
+        
         const bookData = bookDoc.data();
-        const readerData = readerDoc.data();
-
+        
         if (bookData.status !== 'Borrowed' || bookData.borrowedBy !== readerId) {
-            throw new Error('This book was not borrowed by this reader.');
+            const error = new Error('Return not found');
+            (error as any).status = 400;
+            throw error;
         }
 
         // Update book
@@ -39,16 +40,17 @@ export async function POST(request: Request) {
         });
 
         // Update reader
-        const newBooksOut = Math.max(0, (readerData.booksOut || 0) - 1);
-        
         transaction.update(readerRef, {
-            booksOut: newBooksOut,
-            borrowedBooks: FieldValue.arrayRemove(bookData.title),
+            booksOut: FieldValue.increment(-1),
+            borrowedBooks: FieldValue.arrayRemove(bookId),
         });
     });
 
     return NextResponse.json({ success: true, message: 'Book returned successfully.' });
   } catch (error: any) {
+    if (error.status === 400) {
+        return NextResponse.json({ success: false, message: error.message }, { status: 400 });
+    }
     return NextResponse.json({ success: false, message: error.message || 'An unexpected error occurred.' }, { status: 500 });
   }
 }

@@ -32,15 +32,6 @@ export function ReaderActions({ }: ReaderActionsProps) {
   const [selectedReaderForReco, setSelectedReaderForReco] = useState<Reader | null>(null);
 
   useEffect(() => {
-    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
-      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
-       // This is a simple way to populate borrowing history on readers based on book data for the prototype
-      liveReaders.forEach(reader => {
-        reader.borrowingHistory = books.filter(book => book.borrowedBy === reader.id).map(b => b.title);
-      });
-      setReaders(liveReaders);
-    });
-
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
         const liveBooks = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -52,19 +43,39 @@ export function ReaderActions({ }: ReaderActionsProps) {
         });
         setBooks(liveBooks);
     });
+      
+    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+      setReaders(liveReaders);
+    });
+
 
     return () => {
         unsubscribeReaders();
         unsubscribeBooks();
     }
-  }, [books]);
+  }, []);
+
+  const enrichedReaders = useMemo(() => {
+      if (!readers.length || !books.length) return [];
+      return readers.map(reader => {
+          const readerBooks = (reader.borrowedBooks || []).map(bookId => {
+              return books.find(b => b.id === bookId)?.title;
+          }).filter((t): t is string => !!t);
+
+          return {
+              ...reader,
+              borrowingHistory: readerBooks
+          }
+      })
+  }, [readers, books]);
 
   const filteredReaders = useMemo(() => {
-    return readers.filter(reader => {
+    return enrichedReaders.filter(reader => {
       return reader.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
              reader.email.toLowerCase().includes(searchTerm.toLowerCase());
     });
-  }, [readers, searchTerm]);
+  }, [enrichedReaders, searchTerm]);
 
   const getBorrowedBooksCount = (readerId: string) => {
     return books.filter(b => b.borrowedBy === readerId).length;
