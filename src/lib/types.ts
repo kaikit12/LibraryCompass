@@ -13,7 +13,7 @@ export interface Reader {
   name: string;
   email: string;
   phone: string;
-  borrowingHistory: string[]; // array of book titles
+  borrowingHistory?: string[]; // array of book titles
   booksOut: number;
   borrowedBooks: string[];
 }

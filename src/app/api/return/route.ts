@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, getDoc } from 'firebase/firestore';
+import { doc, runTransaction, FieldValue } from 'firebase/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -39,14 +39,11 @@ export async function POST(request: Request) {
         });
 
         // Update reader
-        const newBooksOut = Math.max(0, (readerData.booksOut || 1) - 1);
-        const newBorrowedBooks = (readerData.borrowedBooks || []).filter(
-            (title: string) => title !== bookData.title
-        );
-
+        const newBooksOut = Math.max(0, (readerData.booksOut || 0) - 1);
+        
         transaction.update(readerRef, {
             booksOut: newBooksOut,
-            borrowedBooks: newBorrowedBooks,
+            borrowedBooks: FieldValue.arrayRemove(bookData.title),
         });
     });
 
