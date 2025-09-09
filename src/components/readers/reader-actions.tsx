@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { RecommendationsDialog } from "./recommendations-dialog";
 import { Badge } from "../ui/badge";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 
 interface ReaderActionsProps {
 }
@@ -57,18 +57,21 @@ export function ReaderActions({ }: ReaderActionsProps) {
   }, []);
 
   const enrichedReaders = useMemo(() => {
-      if (!readers.length || !books.length) return [];
-      return readers.map(reader => {
-          // Now correctly maps book IDs to book titles for the borrowing history.
-          const readerBooks = (reader.borrowedBooks || []).map(bookId => {
-              return books.find(b => b.id === bookId)?.title;
-          }).filter((t): t is string => !!t);
+    if (!readers.length || !books.length) return [];
+    
+    // Create a map of book IDs to titles for efficient lookup
+    const bookTitleMap = new Map(books.map(book => [book.id, book.title]));
 
-          return {
-              ...reader,
-              borrowingHistory: readerBooks
-          }
-      })
+    return readers.map(reader => {
+        const borrowedBookTitles = (reader.borrowedBooks || [])
+            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
+            .filter((t): t is string => !!t);
+
+        return {
+            ...reader,
+            borrowingHistory: borrowedBookTitles, // This is a new field for display purposes
+        }
+    });
   }, [readers, books]);
 
   const filteredReaders = useMemo(() => {

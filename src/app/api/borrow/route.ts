@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, getDoc, FieldValue } from 'firebase/firestore';
+import { doc, runTransaction, FieldValue } from 'firebase/firestore';
 import { addDays, formatISO } from 'date-fns';
 
 export async function POST(request: Request) {
