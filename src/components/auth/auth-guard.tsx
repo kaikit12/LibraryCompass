@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/auth-context";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Skeleton } from "../ui/skeleton";
 
 const publicRoutes = ["/login", "/register"];
@@ -11,22 +11,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isVerifying, setIsVerifying] = useState(true);
 
   useEffect(() => {
-    // If loading is finished and there's no user, redirect
-    if (!loading) {
-      if (!user && !publicRoutes.includes(pathname)) {
-        router.push("/login");
-      } else if (user && publicRoutes.includes(pathname)) {
-        router.push("/");
-      } else {
-        setIsVerifying(false);
-      }
+    if (loading) return; // Wait for loading to finish
+
+    const isPublicRoute = publicRoutes.includes(pathname);
+
+    if (!user && !isPublicRoute) {
+      router.push("/login");
+    } else if (user && isPublicRoute) {
+      router.push("/");
     }
   }, [user, loading, router, pathname]);
 
-  if (isVerifying || loading) {
+  // While loading, or if we are about to redirect, show a loading skeleton.
+  if (loading || (!user && !publicRoutes.includes(pathname)) || (user && publicRoutes.includes(pathname))) {
     return (
         <div className="flex h-screen w-screen items-center justify-center">
             <div className="space-y-4 p-8">
@@ -38,5 +37,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // If we are authenticated and on a protected route, or unauthenticated on a public route, show the children.
   return <>{children}</>;
 }
