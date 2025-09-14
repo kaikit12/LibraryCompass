@@ -14,7 +14,6 @@ export async function POST(request: Request) {
     }
 
     // Step 1: Find the active borrowal record OUTSIDE the transaction.
-    // This is crucial because you cannot run arbitrary queries after writes in a transaction.
     const borrowalsRef = collection(db, 'borrowals');
     const q = query(borrowalsRef, where("bookId", "==", bookId), where("userId", "==", userId), where("status", "==", "borrowed"));
     
@@ -24,21 +23,18 @@ export async function POST(request: Request) {
         throw new Error('Return not found. No active borrowal record for this user and book.');
     }
     
-    // Assuming a user can only borrow one copy of a book at a time.
     const borrowalDoc = borrowalSnapshot.docs[0];
-    const borrowalDocRef = borrowalDoc.ref; // Get the reference to the document
+    const borrowalDocRef = borrowalDoc.ref; 
 
     let lateFee = 0;
     let daysLate = 0;
     
-    // Step 2: Perform all writes within the transaction.
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
         const userRef = doc(db, 'users', userId);
 
-        // Read documents needed for the transaction
         const userDoc = await transaction.get(userRef);
-        const currentBorrowalDoc = await transaction.get(borrowalDocRef); // Re-read inside transaction for safety
+        const currentBorrowalDoc = await transaction.get(borrowalDocRef); 
 
         if (!userDoc.exists()) {
           throw new Error("Reader not found.");
@@ -56,14 +52,11 @@ export async function POST(request: Request) {
           lateFee = daysLate * LATE_FEE_PER_DAY;
         }
 
-        // Perform writes
-        // Update book: increment available copies
         transaction.update(bookRef, {
             available: increment(1),
-            status: 'Available' // Set status to available since at least one is returned
+            status: 'Available'
         });
 
-        // Update user: decrement booksOut and remove bookId
         const userUpdate: { [key: string]: any } = {
             booksOut: increment(-1),
             borrowedBooks: arrayRemove(bookId),
@@ -73,7 +66,6 @@ export async function POST(request: Request) {
         }
         transaction.update(userRef, userUpdate);
 
-        // Update the specific borrowal record to 'returned'
         transaction.update(borrowalDocRef, {
             status: 'returned',
             returnedAt: returnDate,

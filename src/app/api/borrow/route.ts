@@ -41,17 +41,16 @@ export async function POST(request: Request) {
       }
       
       // Add a record to the root 'borrowals' collection
-      const borrowalsCollectionRef = collection(db, 'borrowals');
-      // We use addDoc outside the transaction for the write to the new collection,
-      // but since it's the last step, atomicity is largely maintained for the critical user/book updates.
-      // Firestore transactions have limitations on non-idempotent operations like addDoc.
-      // A more robust solution might involve Cloud Functions for complex multi-collection transactions.
-      await addDoc(borrowalsCollectionRef, {
+      // This is done outside the transaction in the final implementation step.
+      // For now, we keep writes inside. A separate step can create a Cloud Function for this.
+      const newBorrowalRef = doc(collection(db, "borrowals"));
+      transaction.set(newBorrowalRef, {
         bookId: bookId,
         userId: userId,
         borrowedAt: new Date(),
         dueDate: new Date(dueDate),
-        status: 'borrowed'
+        status: 'borrowed',
+        isOverdue: false
       });
 
 
