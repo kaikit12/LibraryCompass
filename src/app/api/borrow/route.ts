@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
     await runTransaction(db, async (transaction) => {
       const bookRef = doc(db, 'books', bookId);
-      const userRef = doc(db, 'users', userId);
+      const userRef = doc(db, 'readers', userId);
 
       const bookDoc = await transaction.get(bookRef);
       const userDoc = await transaction.get(userRef);
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         throw new Error('Book not found.');
       }
       if (!userDoc.exists()) {
-        throw new Error('User not found.');
+        throw new Error('Reader not found.');
       }
       
       const bookData = bookDoc.data();

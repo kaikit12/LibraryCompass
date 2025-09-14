@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { Book, User } from '@/lib/types';
+import { Book, Reader } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -27,8 +27,8 @@ export default function OverdueBooks() {
       const booksSnapshot = await getDocs(collection(db, "books"));
       const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
 
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      const usersMap = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data() as User]));
+      const readersSnapshot = await getDocs(collection(db, "readers"));
+      const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
       
       const today = new Date();
       const newOverdueEntries: OverdueEntry[] = [];
@@ -40,7 +40,7 @@ export default function OverdueBooks() {
 
         overdueSnapshot.forEach(doc => {
           const borrowalData = doc.data();
-          const user = usersMap.get(borrowalData.userId);
+          const user = readersMap.get(borrowalData.userId);
           if (user) {
             const dueDate = borrowalData.dueDate.toDate();
             const daysOverdue = differenceInDays(today, dueDate);

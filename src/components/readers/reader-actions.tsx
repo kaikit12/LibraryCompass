@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Book, User } from "@/lib/types";
+import { Book, Reader } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -20,23 +20,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useAuth } from "@/context/auth-context";
 
 
-interface UserActionsProps {
+interface ReaderActionsProps {
 }
 
 
-export function UserActions({ }: UserActionsProps) {
+export function ReaderActions({ }: ReaderActionsProps) {
   const { user } = useAuth();
   const currentUserRole = user?.role;
 
-  const [users, setUsers] = useState<User[]>([]);
+  const [readers, setReaders] = useState<Reader[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<Partial<User> | null>(null);
+  const [editingReader, setEditingReader] = useState<Partial<Reader> | null>(null);
   const [isRecoDialogOpen, setIsRecoDialogOpen] = useState(false);
-  const [selectedUserForReco, setSelectedUserForReco] = useState<User | null>(null);
+  const [selectedReaderForReco, setSelectedReaderForReco] = useState<Reader | null>(null);
+
+  useEffect(() => {
+    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as Reader));
+      setReaders(liveReaders);
+    });
+
+    return () => unsubscribeReaders();
+  }, []);
 
   useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
@@ -44,120 +53,112 @@ export function UserActions({ }: UserActionsProps) {
         setBooks(liveBooks);
     });
       
-    const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-      const liveUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as User));
-      setUsers(liveUsers);
-    });
-
-    return () => {
-        unsubscribeUsers();
-        unsubscribeBooks();
-    }
+    return () => unsubscribeBooks();
   }, []);
 
-  const enrichedUsers = useMemo(() => {
-    if (!users.length || !books.length) return [];
+  const enrichedReaders = useMemo(() => {
+    if (!readers.length || !books.length) return [];
     
     const bookTitleMap = new Map(books.map(book => [book.id, book.title]));
 
-    return users.map(user => {
-        const borrowedBookTitles = (user.borrowedBooks || [])
+    return readers.map(reader => {
+        const borrowedBookTitles = (reader.borrowedBooks || [])
             .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
             // This is a simple way to simulate a broader history.
             // In a real app, you'd store historical borrows in a separate collection.
-            .concat(user.borrowingHistory || []); 
+            .concat(reader.borrowingHistory || []); 
             
         const uniqueTitles = [...new Set(borrowedBookTitles)];
 
         return {
-            ...user,
+            ...reader,
             borrowingHistory: uniqueTitles,
         }
     });
-  }, [users, books]);
+  }, [readers, books]);
 
-  const filteredUsers = useMemo(() => {
-    return enrichedUsers.filter(user => {
-      return user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             user.email.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredReaders = useMemo(() => {
+    return enrichedReaders.filter(reader => {
+      return reader.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             reader.email.toLowerCase().includes(searchTerm.toLowerCase());
     });
-  }, [enrichedUsers, searchTerm]);
+  }, [enrichedReaders, searchTerm]);
 
-  const getBorrowedBooksCount = (userId: string) => {
-    return users.find(r => r.id === userId)?.booksOut || 0;
+  const getBorrowedBooksCount = (readerId: string) => {
+    return readers.find(r => r.id === readerId)?.booksOut || 0;
   }
 
   const handleOpenAdd = () => {
-    setEditingUser({ lateFees: 0, role: 'reader' });
+    setEditingReader({ lateFees: 0, role: 'reader' });
     setIsAddEditOpen(true);
   };
 
-  const handleOpenEdit = (user: User) => {
-    setEditingUser(user);
+  const handleOpenEdit = (reader: Reader) => {
+    setEditingReader(reader);
     setIsAddEditOpen(true);
   };
 
-  const handleSaveUser = async () => {
-    if (!editingUser?.name || !editingUser?.email) {
+  const handleSaveReader = async () => {
+    if (!editingReader?.name || !editingReader?.email) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please fill in name and email.'});
       return;
     }
 
     try {
-        if (editingUser.id) {
-            const userRef = doc(db, 'users', editingUser.id);
-            await updateDoc(userRef, {
-                name: editingUser.name,
-                email: editingUser.email,
-                phone: editingUser.phone || '',
-                lateFees: Number(editingUser.lateFees) || 0,
-                role: editingUser.role || 'reader',
+        if (editingReader.id) {
+            const readerRef = doc(db, 'readers', editingReader.id);
+            await updateDoc(readerRef, {
+                name: editingReader.name,
+                email: editingReader.email,
+                phone: editingReader.phone || '',
+                lateFees: Number(editingReader.lateFees) || 0,
+                role: editingReader.role || 'reader',
             });
-            toast({ title: '✅ User Updated', description: `Profile for ${editingUser.name} has been updated.`});
+            toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
         } else {
             // This path is less likely with auth in place, but kept for completeness
-            await addDoc(collection(db, 'users'), {
-                name: editingUser.name,
-                email: editingUser.email,
-                phone: editingUser.phone || '',
+            await addDoc(collection(db, 'readers'), {
+                name: editingReader.name,
+                email: editingReader.email,
+                phone: editingReader.phone || '',
                 booksOut: 0,
                 borrowedBooks: [],
                 lateFees: 0,
-                role: editingUser.role || 'reader',
+                role: editingReader.role || 'reader',
             });
-            toast({ title: '✅ User Added', description: `${editingUser.name} has been added.`});
+            toast({ title: '✅ Reader Added', description: `${editingReader.name} has been added.`});
         }
         setIsAddEditOpen(false);
-        setEditingUser(null);
+        setEditingReader(null);
 
     } catch(error) {
-        toast({ variant: 'destructive', title: '❌ Error', description: 'There was a problem saving the user.'});
+        toast({ variant: 'destructive', title: '❌ Error', description: 'There was a problem saving the reader.'});
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    const userToDelete = users.find(r => r.id === userId);
-    if (userToDelete && userToDelete.booksOut > 0) {
-        toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot delete user with borrowed books.'});
+  const handleDeleteReader = async (readerId: string) => {
+    const readerToDelete = readers.find(r => r.id === readerId);
+    if (readerToDelete && readerToDelete.booksOut > 0) {
+        toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot delete reader with borrowed books.'});
         return;
     }
     
     try {
-        await deleteDoc(doc(db, 'users', userId));
-        toast({ title: '✅ User Deleted', description: 'The user has been removed from the system.'});
+        await deleteDoc(doc(db, 'readers', readerId));
+        toast({ title: '✅ Reader Deleted', description: 'The reader has been removed from the system.'});
     } catch(error) {
-        toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete user.'});
+        toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete reader.'});
     }
   };
 
-  const handleOpenRecoDialog = (user: User) => {
-    // Find the fully enriched user object from our memoized list
-    const enrichedUser = enrichedUsers.find(r => r.id === user.id);
-    if (enrichedUser) {
-        setSelectedUserForReco(enrichedUser);
+  const handleOpenRecoDialog = (reader: Reader) => {
+    // Find the fully enriched reader object from our memoized list
+    const enrichedReader = enrichedReaders.find(r => r.id === reader.id);
+    if (enrichedReader) {
+        setSelectedReaderForReco(enrichedReader);
         setIsRecoDialogOpen(true);
     } else {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not find user data.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not find reader data.' });
     }
   }
   
@@ -185,7 +186,7 @@ export function UserActions({ }: UserActionsProps) {
           </div>
           { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
             <Button onClick={handleOpenAdd} disabled>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add User (via Register)
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Reader (via Register)
             </Button>
           )}
         </div>
@@ -203,20 +204,20 @@ export function UserActions({ }: UserActionsProps) {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {filteredUsers.length > 0 ? filteredUsers.map(userItem => (
-                <TableRow key={userItem.id}>
-                    <TableCell className="font-medium">{userItem.name}</TableCell>
-                    <TableCell>{userItem.email}</TableCell>
+                {filteredReaders.length > 0 ? filteredReaders.map(readerItem => (
+                <TableRow key={readerItem.id}>
+                    <TableCell className="font-medium">{readerItem.name}</TableCell>
+                    <TableCell>{readerItem.email}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{getBorrowedBooksCount(userItem.id)}</Badge>
+                      <Badge variant="outline">{getBorrowedBooksCount(readerItem.id)}</Badge>
                     </TableCell>
                     <TableCell>
-                        <Badge variant={userItem.lateFees > 0 ? 'destructive' : 'secondary'}>
-                            {formatCurrency(userItem.lateFees || 0)}
+                        <Badge variant={readerItem.lateFees > 0 ? 'destructive' : 'secondary'}>
+                            {formatCurrency(readerItem.lateFees || 0)}
                         </Badge>
                     </TableCell>
                     <TableCell>
-                        <Badge variant="secondary">{userItem.role}</Badge>
+                        <Badge variant="secondary">{readerItem.role}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                     <DropdownMenu>
@@ -228,29 +229,29 @@ export function UserActions({ }: UserActionsProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleOpenRecoDialog(userItem)}>
+                        <DropdownMenuItem onClick={() => handleOpenRecoDialog(readerItem)}>
                             <Sparkles className="mr-2 h-4 w-4 text-accent-foreground/80"/>
                             Get Recommendations
                         </DropdownMenuItem>
                          { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
                            <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleOpenEdit(userItem)}>Edit Profile</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Edit Profile</DropdownMenuItem>
                            </>
                          )}
                          { currentUserRole === 'admin' && (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={userItem.booksOut > 0 || userItem.id === user?.id}>Delete Profile</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={readerItem.booksOut > 0 || readerItem.id === user?.id}>Delete Profile</DropdownMenuItem>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>This will permanently delete {userItem.name}'s profile. This action cannot be undone.</AlertDialogDescription>
+                                        <AlertDialogDescription>This will permanently delete {readerItem.name}'s profile. This action cannot be undone.</AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteUser(userItem.id)}>Continue</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Continue</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -262,7 +263,7 @@ export function UserActions({ }: UserActionsProps) {
                 )) : (
                 <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                    No users found.
+                    No readers found.
                     </TableCell>
                 </TableRow>
                 )}
@@ -273,28 +274,28 @@ export function UserActions({ }: UserActionsProps) {
         <Dialog open={isAddEditOpen} onOpenChange={setIsAddEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingUser?.id ? 'Edit User' : 'Add New User'}</DialogTitle>
+              <DialogTitle>{editingReader?.id ? 'Edit Reader' : 'Add New Reader'}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">Name</Label>
-                <Input id="name" value={editingUser?.name || ''} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="col-span-3" />
+                <Input id="name" value={editingReader?.name || ''} onChange={e => setEditingReader({...editingReader, name: e.target.value})} className="col-span-3" />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="email" className="text-right">Email</Label>
-                <Input id="email" type="email" value={editingUser?.email || ''} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="col-span-3" disabled/>
+                <Input id="email" type="email" value={editingReader?.email || ''} onChange={e => setEditingReader({...editingReader, email: e.target.value})} className="col-span-3" disabled/>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="phone" className="text-right">Phone</Label>
-                <Input id="phone" value={editingUser?.phone || ''} onChange={e => setEditingUser({...editingUser, phone: e.target.value})} className="col-span-3" />
+                <Input id="phone" value={editingReader?.phone || ''} onChange={e => setEditingReader({...editingReader, phone: e.target.value})} className="col-span-3" />
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="lateFees" className="text-right">Late Fees</Label>
-                <Input id="lateFees" type="number" value={editingUser?.lateFees || 0} onChange={e => setEditingUser({...editingUser, lateFees: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
+                <Input id="lateFees" type="number" value={editingReader?.lateFees || 0} onChange={e => setEditingReader({...editingReader, lateFees: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="role" className="text-right">Role</Label>
-                 <Select value={editingUser?.role || 'reader'} onValueChange={(value) => setEditingUser({...editingUser, role: value as User['role']})} disabled={currentUserRole !== 'admin'}>
+                 <Select value={editingReader?.role || 'reader'} onValueChange={(value) => setEditingReader({...editingReader, role: value as Reader['role']})} disabled={currentUserRole !== 'admin'}>
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
@@ -308,14 +309,14 @@ export function UserActions({ }: UserActionsProps) {
             </div>
             <DialogFooter>
                <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-              <Button type="submit" onClick={handleSaveUser}>Save changes</Button>
+              <Button type="submit" onClick={handleSaveReader}>Save changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         
-        {selectedUserForReco && (
+        {selectedReaderForReco && (
             <RecommendationsDialog 
-                user={selectedUserForReco} 
+                reader={selectedReaderForReco} 
                 isOpen={isRecoDialogOpen} 
                 setIsOpen={setIsRecoDialogOpen} 
             />

@@ -18,12 +18,12 @@ export async function POST(request: Request) {
 
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
-        const userRef = doc(db, 'users', userId);
+        const userRef = doc(db, 'readers', userId);
 
         // This transaction needs the user doc for updates later
         const userDoc = await transaction.get(userRef);
         if (!userDoc.exists()) {
-          throw new Error("User not found.");
+          throw new Error("Reader not found.");
         }
 
         // Get the specific borrowal record
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
     let message = 'Book returned successfully.';
     if (lateFee > 0) {
-        message += ` A late fee of $${lateFee.toFixed(2)} for ${daysLate} day(s) has been added to the user's account.`
+        message += ` A late fee of $${lateFee.toFixed(2)} for ${daysLate} day(s) has been added to the reader's account.`
     }
 
     return NextResponse.json({ success: true, message });

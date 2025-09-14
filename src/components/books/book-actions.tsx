@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Book, User } from "@/lib/types";
+import { Book, Reader } from "@/lib/types";
 import { genres } from "@/lib/data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,7 +29,7 @@ export function BookActions({ }: BookActionsProps) {
   const currentUserRole = user?.role;
 
   const [books, setBooks] = useState<Book[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [readers, setReaders] = useState<Reader[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [genreFilter, setGenreFilter] = useState("all");
@@ -56,9 +56,9 @@ export function BookActions({ }: BookActionsProps) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-      const liveUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-      setUsers(liveUsers);
+    const unsubscribe = onSnapshot(collection(db, "readers"), (snapshot) => {
+      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+      setReaders(liveReaders);
     });
     return () => unsubscribe();
   }, []);
@@ -146,10 +146,10 @@ export function BookActions({ }: BookActionsProps) {
   }
 
   const handleReturnBookByTitle = async (book: Book) => {
-    const userWithBook = users.find(user => user.borrowedBooks.includes(book.id));
+    const userWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
     
     if (!userWithBook) {
-      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a user who has this book borrowed."});
+      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has this book borrowed."});
       return;
     }
     
@@ -333,7 +333,7 @@ export function BookActions({ }: BookActionsProps) {
         {selectedBook && (
             <BorrowDialog 
                 book={selectedBook}
-                users={users}
+                readers={readers}
                 isOpen={isBorrowOpen}
                 setIsOpen={setIsBorrowOpen}
             />

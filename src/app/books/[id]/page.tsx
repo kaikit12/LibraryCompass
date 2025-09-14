@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Book, User } from "@/lib/types";
+import { Book, Reader } from "@/lib/types";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, Unsubscribe } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,7 +23,7 @@ export default function BookDetailPage() {
 
 
   const [book, setBook] = useState<Book | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [readers, setReaders] = useState<Reader[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [isBorrowOpen, setIsBorrowOpen] = useState(false);
@@ -41,23 +41,23 @@ export default function BookDetailPage() {
       setLoading(false);
     });
 
-    let unsubscribeUsers: Unsubscribe | undefined;
+    let unsubscribeReaders: Unsubscribe | undefined;
 
     if (currentUser.role === 'admin' || currentUser.role === 'librarian') {
-        unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-            const liveUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-            setUsers(liveUsers);
+        unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+            const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+            setReaders(liveReaders);
         });
     } else {
         // If the user is a reader, they don't need the full list.
         // We just create a list containing only them to pass to the borrow dialog.
-        setUsers([currentUser]);
+        setReaders([currentUser]);
     }
 
     return () => {
         unsubscribeBook();
-        if (unsubscribeUsers) {
-            unsubscribeUsers();
+        if (unsubscribeReaders) {
+            unsubscribeReaders();
         }
     };
   }, [bookId, currentUser]);
@@ -65,11 +65,11 @@ export default function BookDetailPage() {
   const handleReturnBook = async () => {
     if (!book) return;
     
-    // This logic is for librarians/admins, so `users` will be populated.
-    const userWithBook = users.find(user => user.borrowedBooks.includes(book.id));
+    // This logic is for librarians/admins, so `readers` will be populated.
+    const userWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
     
     if (!userWithBook) {
-      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a user who has this book borrowed."});
+      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has this book borrowed."});
       return;
     }
     
@@ -179,7 +179,7 @@ export default function BookDetailPage() {
 
       <BorrowDialog
         book={book}
-        users={users}
+        readers={readers}
         isOpen={isBorrowOpen}
         setIsOpen={setIsBorrowOpen}
       />

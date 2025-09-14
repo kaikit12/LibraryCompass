@@ -11,11 +11,11 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import type { User } from '@/lib/types';
+import type { Reader } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
-    user: (User & { uid: string }) | null;
+    user: (Reader & { uid: string }) | null;
     loading: boolean;
     login: (email: string, pass: string) => Promise<any>;
     register: (name: string, email: string, pass: string) => Promise<any>;
@@ -25,7 +25,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<(User & { uid: string }) | null>(null);
+    const [user, setUser] = useState<(Reader & { uid: string }) | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
@@ -33,10 +33,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 // User is signed in, get their data from Firestore
-                const userRef = doc(db, 'users', firebaseUser.uid);
+                const userRef = doc(db, 'readers', firebaseUser.uid);
                 const docSnap = await getDoc(userRef);
                 if (docSnap.exists()) {
-                    setUser({ id: docSnap.id, uid: firebaseUser.uid, ...docSnap.data() } as User & { uid: string });
+                    setUser({ id: docSnap.id, uid: firebaseUser.uid, ...docSnap.data() } as Reader & { uid: string });
                 } else {
                     // This case might happen if the Firestore doc wasn't created properly
                     // Or if it was deleted. We log them out.
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const firebaseUser = userCredential.user;
         
         // Create a document in Firestore for the new user
-        await setDoc(doc(db, "users", firebaseUser.uid), {
+        await setDoc(doc(db, "readers", firebaseUser.uid), {
             uid: firebaseUser.uid,
             name: name,
             email: email,

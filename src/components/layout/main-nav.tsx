@@ -13,7 +13,7 @@ import { useAuth } from '@/context/auth-context'
 const links = [
   { href: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'librarian'] },
   { href: '/books', label: 'Books', icon: Book, roles: ['admin', 'librarian', 'reader'] },
-  { href: '/users', label: 'Users', icon: Users, roles: ['admin', 'librarian'] },
+  { href: '/readers', label: 'Readers', icon: Users, roles: ['admin', 'librarian'] },
 ]
 
 export function MainNav() {

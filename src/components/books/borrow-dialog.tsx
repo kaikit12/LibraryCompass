@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Book, User } from "@/lib/types";
+import { Book, Reader } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,14 +26,14 @@ import { useAuth } from "@/context/auth-context";
 
 interface BorrowDialogProps {
   book: Book | null;
-  users: User[];
+  readers: Reader[];
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
 
 export function BorrowDialog({
   book,
-  users,
+  readers,
   isOpen,
   setIsOpen,
 }: BorrowDialogProps) {
@@ -50,7 +50,7 @@ export function BorrowDialog({
 
   const handleConfirmBorrow = async () => {
     if (!book || !selectedUserId || !dueDate) {
-        toast({ variant: 'destructive', title: '❌ Error', description: 'Please select a user and a due date.'});
+        toast({ variant: 'destructive', title: '❌ Error', description: 'Please select a reader and a due date.'});
         return;
     }
 
@@ -98,19 +98,19 @@ export function BorrowDialog({
         <DialogHeader>
           <DialogTitle>Borrow Book: {book?.title}</DialogTitle>
           <DialogDescription>
-            Select a user and a return date to borrow this book.
+            Select a reader and a return date to borrow this book.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
          { (user?.role === 'admin' || user?.role === 'librarian') && (
             <div className="space-y-2">
-                <Label htmlFor="user">User</Label>
+                <Label htmlFor="user">Reader</Label>
                 <Select onValueChange={setSelectedUserId} value={selectedUserId}>
                 <SelectTrigger id="user">
-                    <SelectValue placeholder="Select a user" />
+                    <SelectValue placeholder="Select a reader" />
                 </SelectTrigger>
                 <SelectContent>
-                    {users.map((r) => (
+                    {readers.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                         {r.name}
                     </SelectItem>
