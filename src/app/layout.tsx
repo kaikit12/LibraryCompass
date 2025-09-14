@@ -4,6 +4,9 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
+import { AuthProvider } from '@/context/auth-context';
+import { AuthGuard } from '@/components/auth/auth-guard';
+
 
 export const metadata: Metadata = {
   title: 'Library Compass',
@@ -23,14 +26,18 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet" />
       </head>
       <body className={cn('font-body antialiased')}>
-        <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              <div className="p-4 sm:p-6 md:p-8">
-                {children}
-              </div>
-            </SidebarInset>
-        </SidebarProvider>
+        <AuthProvider>
+            <AuthGuard>
+                <SidebarProvider>
+                    <AppSidebar />
+                    <SidebarInset>
+                      <div className="p-4 sm:p-6 md:p-8">
+                        {children}
+                      </div>
+                    </SidebarInset>
+                </SidebarProvider>
+            </AuthGuard>
+        </AuthProvider>
         <Toaster />
       </body>
     </html>

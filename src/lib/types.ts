@@ -11,7 +11,8 @@ export interface Book {
 }
 
 export interface Reader {
-  id: string;
+  id: string; // This will be the firebase uid
+  uid: string;
   name: string;
   email: string;
   phone: string;

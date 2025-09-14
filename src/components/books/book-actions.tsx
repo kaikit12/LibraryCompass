@@ -19,14 +19,15 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { BorrowDialog } from "./borrow-dialog";
 import { QRCodeDialog } from "./qr-code-dialog";
+import { useAuth } from "@/context/auth-context";
 
 interface BookActionsProps {
 }
 
-// NOTE: In a real app, you'd get this from your auth context
-const currentUserRole: Reader['role'] = 'admin';
-
 export function BookActions({ }: BookActionsProps) {
+  const { user } = useAuth();
+  const currentUserRole = user?.role;
+
   const [books, setBooks] = useState<Book[]>([]);
   const [readers, setReaders] = useState<Reader[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -145,9 +146,6 @@ export function BookActions({ }: BookActionsProps) {
   }
 
   const handleReturnBookByTitle = async (book: Book) => {
-    // Find the reader who borrowed this specific book.
-    // This logic assumes a book can only be borrowed by one person at a time,
-    // which is enforced by the borrowal subcollection logic.
     const readerWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
     
     if (!readerWithBook) {
@@ -241,12 +239,14 @@ export function BookActions({ }: BookActionsProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleOpenBorrow(book)} disabled={book.available === 0}>
+                       <DropdownMenuItem onClick={() => handleOpenBorrow(book)} disabled={book.available === 0}>
                         Borrow
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleReturnBookByTitle(book)} disabled={book.available === book.quantity}>
-                        Return
-                      </DropdownMenuItem>
+                      {(currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+                        <DropdownMenuItem onClick={() => handleReturnBookByTitle(book)} disabled={book.available === book.quantity}>
+                          Return
+                        </DropdownMenuItem>
+                      )}
                        <DropdownMenuItem onClick={() => handleOpenQR(book)}>
                         <QrCode className="mr-2 h-4 w-4" />
                         View QR Code

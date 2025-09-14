@@ -17,14 +17,17 @@ import { Badge } from "../ui/badge";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { useAuth } from "@/context/auth-context";
+
 
 interface ReaderActionsProps {
 }
 
-// NOTE: In a real app, you'd get this from your auth context
-const currentUserRole: Reader['role'] = 'admin';
 
 export function ReaderActions({ }: ReaderActionsProps) {
+  const { user } = useAuth();
+  const currentUserRole = user?.role;
+
   const [readers, setReaders] = useState<Reader[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -112,6 +115,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
             });
             toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
         } else {
+            // This path is less likely with auth in place, but kept for completeness
             await addDoc(collection(db, 'readers'), {
                 name: editingReader.name,
                 email: editingReader.email,
@@ -161,6 +165,16 @@ export function ReaderActions({ }: ReaderActionsProps) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   }
 
+  if (currentUserRole === 'reader') {
+      return (
+          <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                  You do not have permission to view this page.
+              </CardContent>
+          </Card>
+      )
+  }
+
   return (
     <Card>
       <CardContent className="pt-6">
@@ -170,8 +184,8 @@ export function ReaderActions({ }: ReaderActionsProps) {
             <Input placeholder="Search by name or email..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-            <Button onClick={handleOpenAdd}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Reader
+            <Button onClick={handleOpenAdd} disabled>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Reader (via Register)
             </Button>
           )}
         </div>
@@ -224,7 +238,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                             <DropdownMenuItem onClick={() => handleOpenEdit(reader)}>Edit Profile</DropdownMenuItem>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={reader.booksOut > 0}>Delete Profile</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={reader.booksOut > 0 || reader.id === user?.id}>Delete Profile</DropdownMenuItem>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
@@ -266,7 +280,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="email" className="text-right">Email</Label>
-                <Input id="email" type="email" value={editingReader?.email || ''} onChange={e => setEditingReader({...editingReader, email: e.target.value})} className="col-span-3" />
+                <Input id="email" type="email" value={editingReader?.email || ''} onChange={e => setEditingReader({...editingReader, email: e.target.value})} className="col-span-3" disabled/>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="phone" className="text-right">Phone</Label>

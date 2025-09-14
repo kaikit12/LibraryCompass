@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Book, Reader } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { formatISO } from "date-fns";
+import { useAuth } from "@/context/auth-context";
 
 interface BorrowDialogProps {
   book: Book | null;
@@ -36,9 +37,16 @@ export function BorrowDialog({
   isOpen,
   setIsOpen,
 }: BorrowDialogProps) {
+  const { user } = useAuth();
   const [selectedReaderId, setSelectedReaderId] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (user?.role === 'reader' && user?.id) {
+        setSelectedReaderId(user.id);
+    }
+  }, [user, isOpen]);
 
   const handleConfirmBorrow = async () => {
     if (!book || !selectedReaderId || !dueDate) {
@@ -78,7 +86,9 @@ export function BorrowDialog({
 
   const handleClose = () => {
     setIsOpen(false);
-    setSelectedReaderId("");
+    if(user?.role !== 'reader') {
+        setSelectedReaderId("");
+    }
     setDueDate("");
   };
 
@@ -92,21 +102,23 @@ export function BorrowDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="reader">Reader</Label>
-            <Select onValueChange={setSelectedReaderId} value={selectedReaderId}>
-              <SelectTrigger id="reader">
-                <SelectValue placeholder="Select a reader" />
-              </SelectTrigger>
-              <SelectContent>
-                {readers.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+         { (user?.role === 'admin' || user?.role === 'librarian') && (
+            <div className="space-y-2">
+                <Label htmlFor="reader">Reader</Label>
+                <Select onValueChange={setSelectedReaderId} value={selectedReaderId}>
+                <SelectTrigger id="reader">
+                    <SelectValue placeholder="Select a reader" />
+                </SelectTrigger>
+                <SelectContent>
+                    {readers.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                    </SelectItem>
+                    ))}
+                </SelectContent>
+                </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="due-date">Return Date</Label>
             <Input
