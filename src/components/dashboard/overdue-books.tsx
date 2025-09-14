@@ -66,10 +66,35 @@ export default function OverdueBooks() {
   }, []);
   
   const handleNotify = (bookTitle: string, readerName: string) => {
-    toast({
-      title: 'Notification Sent',
-      description: `A reminder for "${bookTitle}" has been sent to ${readerName}.`,
-    });
+    const showNotification = () => {
+      new Notification('Overdue Book Reminder', {
+        body: `Hi ${readerName}, the book "${bookTitle}" is overdue. Please return it soon.`,
+        icon: '/favicon.ico' // Optional: you can add an icon
+      });
+      toast({
+        title: '✅ Notification Sent',
+        description: `A reminder for "${bookTitle}" has been sent to ${readerName}.`,
+      });
+    };
+
+    if (!('Notification' in window)) {
+      toast({ variant: 'destructive', title: 'Error', description: 'This browser does not support desktop notification.' });
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      showNotification();
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') {
+          showNotification();
+        } else {
+            toast({ title: '🔔 Notification Skipped', description: 'Permission was not granted for notifications.' });
+        }
+      });
+    } else {
+        toast({ variant: 'destructive', title: 'Permission Denied', description: 'Notifications are blocked. Please enable them in your browser settings.' });
+    }
   };
 
   return (
