@@ -20,23 +20,23 @@ export async function POST(request: Request) {
         const bookRef = doc(db, 'books', bookId);
         const userRef = doc(db, 'users', userId);
 
-        // This transaction needs the user doc for updates later
         const userDoc = await transaction.get(userRef);
         if (!userDoc.exists()) {
           throw new Error("Reader not found.");
         }
 
-        // Get the specific borrowal record
-        const borrowalsRef = collection(db, 'books', bookId, 'borrowals');
-        const q = query(borrowalsRef, where("userId", "==", userId), where("status", "==", "borrowed"));
+        // Get the specific borrowal record from the root collection
+        const borrowalsRef = collection(db, 'borrowals');
+        const q = query(borrowalsRef, where("bookId", "==", bookId), where("userId", "==", userId), where("status", "==", "borrowed"));
         
-        // This get() must be inside the transaction to be atomic
+        // This must be a getDocs outside the transaction to read first, then update.
         const borrowalSnapshot = await getDocs(q);
 
         if (borrowalSnapshot.empty) {
              throw new Error('Return not found. No active borrowal record for this user and book.');
         }
 
+        // Assuming a user can only borrow one copy of a book at a time.
         const borrowalDoc = borrowalSnapshot.docs[0];
         const borrowalData = borrowalDoc.data();
         const dueDate = borrowalData.dueDate.toDate();

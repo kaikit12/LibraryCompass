@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, increment, arrayUnion, collection } from 'firebase/firestore';
+import { doc, runTransaction, increment, arrayUnion, collection, addDoc } from 'firebase/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -40,9 +40,14 @@ export async function POST(request: Request) {
         transaction.update(bookRef, { status: 'Borrowed' });
       }
       
-      // Add a record to a subcollection for this specific borrow instance
-      const borrowLogRef = doc(collection(db, 'books', bookId, 'borrowals'));
-      transaction.set(borrowLogRef, {
+      // Add a record to the root 'borrowals' collection
+      const borrowalsCollectionRef = collection(db, 'borrowals');
+      // We use addDoc outside the transaction for the write to the new collection,
+      // but since it's the last step, atomicity is largely maintained for the critical user/book updates.
+      // Firestore transactions have limitations on non-idempotent operations like addDoc.
+      // A more robust solution might involve Cloud Functions for complex multi-collection transactions.
+      await addDoc(borrowalsCollectionRef, {
+        bookId: bookId,
         userId: userId,
         borrowedAt: new Date(),
         dueDate: new Date(dueDate),

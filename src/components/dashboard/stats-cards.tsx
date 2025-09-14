@@ -22,6 +22,7 @@ export default function StatsCards({ }: StatsCardsProps) {
   const [returnedToday, setReturnedToday] = useState(0);
 
   useEffect(() => {
+    // This subscription updates total books and copies
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
        let copies = 0;
        let borrowed = 0;
@@ -34,6 +35,7 @@ export default function StatsCards({ }: StatsCardsProps) {
        setBorrowedBooksCount(borrowed);
     });
 
+    // This subscription updates total readers and late fees
     const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
       let fees = 0;
       snapshot.forEach(doc => {
@@ -43,53 +45,40 @@ export default function StatsCards({ }: StatsCardsProps) {
       setTotalReaders(snapshot.size);
       setLateFeeRevenue(fees);
     });
-
-    const fetchDailyStats = async () => {
+    
+    // This subscription handles all time-based stats by listening to the new `borrowals` collection
+    const fetchDailyStats = () => {
         const today = new Date();
         const startOfToday = startOfDay(today);
         const endOfToday = endOfDay(today);
+        const borrowalsColRef = collection(db, "borrowals");
 
-        const booksSnapshot = await getDocs(collection(db, "books"));
-        let overdueBooks = 0;
-        let borrowedTodayCount = 0;
-        let dueTodayCount = 0;
-        let returnedTodayCount = 0;
+        // Overdue
+        const overdueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", Timestamp.fromDate(today)));
+        const unsubscribeOverdue = onSnapshot(overdueQuery, snapshot => setOverdueCount(snapshot.size));
 
-        for(const bookDoc of booksSnapshot.docs) {
-            const borrowalsColRef = collection(db, "books", bookDoc.id, "borrowals");
-            
-            // Overdue
-            const overdueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", Timestamp.fromDate(today)));
-            const overdueSnapshot = await getDocs(overdueQuery);
-            overdueBooks += overdueSnapshot.size;
+        // Borrowed Today
+        const borrowedQuery = query(borrowalsColRef, where("borrowedAt", ">=", Timestamp.fromDate(startOfToday)), where("borrowedAt", "<=", Timestamp.fromDate(endOfToday)));
+        const unsubscribeBorrowed = onSnapshot(borrowedQuery, snapshot => setBorrowedToday(snapshot.size));
 
-            // Borrowed Today
-            const borrowedQuery = query(borrowalsColRef, where("borrowedAt", ">=", Timestamp.fromDate(startOfToday)), where("borrowedAt", "<=", Timestamp.fromDate(endOfToday)));
-            const borrowedSnapshot = await getDocs(borrowedQuery);
-            borrowedTodayCount += borrowedSnapshot.size;
+        // Due Today
+        const dueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", ">=", Timestamp.fromDate(startOfToday)), where("dueDate", "<=", Timestamp.fromDate(endOfToday)));
+        const unsubscribeDue = onSnapshot(dueQuery, snapshot => setDueToday(snapshot.size));
 
-            // Due Today
-            const dueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", ">=", Timestamp.fromDate(startOfToday)), where("dueDate", "<=", Timestamp.fromDate(endOfToday)));
-            const dueSnapshot = await getDocs(dueQuery);
-            dueTodayCount += dueSnapshot.size;
+        // Returned Today
+        const returnedQuery = query(borrowalsColRef, where("returnedAt", ">=", Timestamp.fromDate(startOfToday)), where("returnedAt", "<=", Timestamp.fromDate(endOfToday)));
+        const unsubscribeReturned = onSnapshot(returnedQuery, snapshot => setReturnedToday(snapshot.size));
 
-            // Returned Today
-            const returnedQuery = query(borrowalsColRef, where("returnedAt", ">=", Timestamp.fromDate(startOfToday)), where("returnedAt", "<=", Timestamp.fromDate(endOfToday)));
-            const returnedSnapshot = await getDocs(returnedQuery);
-            returnedTodayCount += returnedSnapshot.size;
-        }
-        setOverdueCount(overdueBooks);
-        setBorrowedToday(borrowedTodayCount);
-        setDueToday(dueTodayCount);
-        setReturnedToday(returnedTodayCount);
+        return [unsubscribeOverdue, unsubscribeBorrowed, unsubscribeDue, unsubscribeReturned];
     }
-    fetchDailyStats();
-    const interval = setInterval(fetchDailyStats, 60000); // Check for stats every minute
 
+    const dailyStatsUnsubscribers = fetchDailyStats();
+    
+    // Cleanup all subscriptions on component unmount
     return () => {
         unsubscribeBooks();
         unsubscribeReaders();
-        clearInterval(interval);
+        dailyStatsUnsubscribers.forEach(unsub => unsub());
     };
   }, []);
   
