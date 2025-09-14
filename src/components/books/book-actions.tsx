@@ -55,7 +55,7 @@ export function BookActions({ }: BookActionsProps) {
       setBooks(liveBooks);
     });
     
-    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
       setReaders(liveReaders);
     });
@@ -196,41 +196,42 @@ export function BookActions({ }: BookActionsProps) {
     <Card>
       <CardContent className="pt-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between mb-4">
-          <div className="relative sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by title or author..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Available">Available</SelectItem>
-                <SelectItem value="Borrowed">Borrowed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={genreFilter} onValueChange={setGenreFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Filter by genre" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Genres</SelectItem>
-                {genres.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+                <div className="relative sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search by title or author..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[160px]">
+                        <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="Available">Available</SelectItem>
+                        <SelectItem value="Borrowed">Borrowed</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={genreFilter} onValueChange={setGenreFilter}>
+                    <SelectTrigger className="w-full sm:w-[160px]">
+                        <SelectValue placeholder="Filter by genre" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Genres</SelectItem>
+                        {genres.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+          
             { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-              <>
-                <Button onClick={() => setIsRecoDialogOpen(true)} variant="outline">
-                    <Sparkles className="mr-2 h-4 w-4" /> AI Recommendations
-                </Button>
-                <Button onClick={handleOpenAdd}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Book
-                </Button>
-              </>
+                <div className="flex gap-2">
+                    <Button onClick={() => setIsRecoDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
+                        <Sparkles className="mr-2 h-4 w-4" /> AI Recommendations
+                    </Button>
+                    <Button onClick={handleOpenAdd} className="w-full sm:w-auto">
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Book
+                    </Button>
+                </div>
             )}
-          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -385,3 +386,5 @@ export function BookActions({ }: BookActionsProps) {
     </Card>
   );
 }
+
+    
