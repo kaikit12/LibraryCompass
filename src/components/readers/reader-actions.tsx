@@ -23,6 +23,20 @@ import { useAuth } from "@/context/auth-context";
 interface ReaderActionsProps {
 }
 
+const RoleBadge = ({ role }: { role: Reader['role'] }) => {
+    const variant: "default" | "secondary" | "destructive" | "outline" = 
+        role === 'admin' ? 'default' 
+        : role === 'librarian' ? 'default' 
+        : 'secondary';
+    
+    const className = 
+        role === 'admin' ? 'bg-primary/90'
+        : role === 'librarian' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+        : '';
+
+    return <Badge variant={variant} className={className}>{role}</Badge>;
+}
+
 
 export function ReaderActions({ }: ReaderActionsProps) {
   const { user } = useAuth();
@@ -43,16 +57,17 @@ export function ReaderActions({ }: ReaderActionsProps) {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as Reader));
       setReaders(liveReaders);
     });
+      
+    return () => unsubscribeReaders();
+  }, []);
 
+  useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
         const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
         setBooks(liveBooks);
     });
       
-    return () => {
-        unsubscribeReaders();
-        unsubscribeBooks();
-    };
+    return () => unsubscribeBooks();
   }, []);
 
   const enrichedReaders = useMemo(() => {
@@ -216,7 +231,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                         </Badge>
                     </TableCell>
                     <TableCell>
-                        <Badge variant="secondary">{readerItem.role}</Badge>
+                        <RoleBadge role={readerItem.role} />
                     </TableCell>
                     <TableCell className="text-right">
                     <DropdownMenu>
