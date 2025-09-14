@@ -1,5 +1,6 @@
 import StatsCards from '@/components/dashboard/stats-cards';
 import OverdueBooks from '@/components/dashboard/overdue-books';
+import CurrentlyBorrowedBooks from '@/components/dashboard/currently-borrowed-books';
 
 export default async function DashboardPage() {
   
@@ -15,6 +16,8 @@ export default async function DashboardPage() {
       <StatsCards />
 
       <OverdueBooks />
+
+      <CurrentlyBorrowedBooks />
     </div>
   );
 }
