@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 interface BorrowedEntry {
   bookTitle: string;
@@ -16,41 +16,48 @@ interface BorrowedEntry {
 
 export default function CurrentlyBorrowedBooks() {
   const [borrowedEntries, setBorrowedEntries] = useState<BorrowedEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const borrowalsColRef = collection(db, "borrowals");
-    const q = query(borrowalsColRef, where("status", "==", "borrowed"));
+    const borrowalsQuery = query(collection(db, "borrowals"), where("status", "==", "borrowed"));
+    const booksQuery = collection(db, "books");
+    const readersQuery = collection(db, "users");
 
-    const unsubscribe = onSnapshot(q, async (borrowalsSnapshot) => {
-        const booksSnapshot = await getDocs(collection(db, "books"));
-        const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
+    const unsubBorrowals = onSnapshot(borrowalsQuery, (borrowalsSnapshot) => {
+        const unsubBooks = onSnapshot(booksQuery, (booksSnapshot) => {
+            const unsubReaders = onSnapshot(readersQuery, (readersSnapshot) => {
+                setLoading(true);
+                const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
+                const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
 
-        const readersSnapshot = await getDocs(collection(db, "users"));
-        const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
+                const newBorrowedEntries: BorrowedEntry[] = [];
+                borrowalsSnapshot.forEach(doc => {
+                    const borrowalData = doc.data();
+                    const borrowedAt = borrowalData.borrowedAt.toDate();
+                    const dueDate = borrowalData.dueDate.toDate();
+                    const user = readersMap.get(borrowalData.userId);
+                    const book = booksMap.get(borrowalData.bookId);
 
-        const newBorrowedEntries: BorrowedEntry[] = [];
-        borrowalsSnapshot.forEach(doc => {
-            const borrowalData = doc.data();
-            const borrowedAt = borrowalData.borrowedAt.toDate();
-            const dueDate = borrowalData.dueDate.toDate();
-            const user = readersMap.get(borrowalData.userId);
-            const book = booksMap.get(borrowalData.bookId);
-
-            if (user && book) {
-                newBorrowedEntries.push({
-                    bookTitle: book.title,
-                    userName: user.name,
-                    borrowedAt: format(borrowedAt, 'PPP'),
-                    dueDate: format(dueDate, 'PPP'),
+                    if (user && book) {
+                        newBorrowedEntries.push({
+                            bookTitle: book.title,
+                            userName: user.name,
+                            borrowedAt: format(borrowedAt, 'PPP'),
+                            dueDate: format(dueDate, 'PPP'),
+                        });
+                    }
                 });
-            }
+
+                newBorrowedEntries.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+                setBorrowedEntries(newBorrowedEntries);
+                setLoading(false);
+            });
+            return () => unsubReaders();
         });
-        // Sort by due date, oldest first
-        newBorrowedEntries.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-        setBorrowedEntries(newBorrowedEntries);
+        return () => unsubBooks();
     });
 
-    return () => unsubscribe();
+    return () => unsubBorrowals();
   }, []);
   
 
@@ -61,7 +68,9 @@ export default function CurrentlyBorrowedBooks() {
         <CardDescription>A list of all books currently checked out from the library.</CardDescription>
       </CardHeader>
       <CardContent>
-        {borrowedEntries.length > 0 ? (
+        {loading ? (
+           <div className="text-center text-muted-foreground p-8">Loading...</div>
+        ) : borrowedEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

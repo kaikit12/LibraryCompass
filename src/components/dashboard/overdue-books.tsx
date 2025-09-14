@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, format, isPast } from 'date-fns';
 import { Bell } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 interface OverdueEntry {
   userId: string;
@@ -22,51 +22,66 @@ interface OverdueEntry {
 export default function OverdueBooks() {
   const { toast } = useToast();
   const [overdueEntries, setOverdueEntries] = useState<OverdueEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const borrowalsColRef = collection(db, "borrowals");
-    const q = query(borrowalsColRef, where("status", "==", "borrowed"));
+    const borrowalsQuery = query(collection(db, "borrowals"), where("status", "==", "borrowed"));
+    const booksQuery = collection(db, "books");
+    const readersQuery = collection(db, "users");
 
-    const unsubscribe = onSnapshot(q, async (borrowalsSnapshot) => {
-        const booksSnapshot = await getDocs(collection(db, "books"));
-        const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
+    // This is a multi-listener setup. It's a bit complex, but ensures data is always in sync.
+    const unsubBorrowals = onSnapshot(borrowalsQuery, (borrowalsSnapshot) => {
+        const unsubBooks = onSnapshot(booksQuery, (booksSnapshot) => {
+            const unsubReaders = onSnapshot(readersQuery, (readersSnapshot) => {
+                setLoading(true);
+                const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
+                const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
+                
+                const newOverdueEntries: OverdueEntry[] = [];
+                const today = new Date();
 
-        const readersSnapshot = await getDocs(collection(db, "users"));
-        const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
+                borrowalsSnapshot.forEach(doc => {
+                    const borrowalData = doc.data();
+                    const dueDate = borrowalData.dueDate.toDate();
+                    
+                    if (isPast(dueDate)) {
+                        const user = readersMap.get(borrowalData.userId);
+                        const book = booksMap.get(borrowalData.bookId);
+                        
+                        if (user && book) {
+                            const daysOverdue = differenceInDays(today, dueDate);
+                            newOverdueEntries.push({
+                                userId: user.id,
+                                bookTitle: book.title,
+                                userName: user.name,
+                                dueDate: format(dueDate, 'PPP'),
+                                daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
+                            });
+                        }
+                    }
+                });
 
-        const newOverdueEntries: OverdueEntry[] = [];
-        const today = new Date();
-
-        borrowalsSnapshot.forEach(doc => {
-            const borrowalData = doc.data();
-            const dueDate = borrowalData.dueDate.toDate();
-            
-            // Client-side check for overdue status
-            if (isPast(dueDate)) {
-                const user = readersMap.get(borrowalData.userId);
-                const book = booksMap.get(borrowalData.bookId);
-
-                if (user && book) {
-                    const daysOverdue = differenceInDays(today, dueDate);
-                    newOverdueEntries.push({
-                        userId: user.id,
-                        bookTitle: book.title,
-                        userName: user.name,
-                        dueDate: format(dueDate, 'PPP'),
-                        daysOverdue: daysOverdue > 0 ? daysOverdue : 1, // Ensure at least 1 day overdue is shown
-                    });
-                }
-            }
+                newOverdueEntries.sort((a, b) => b.daysOverdue - a.daysOverdue);
+                setOverdueEntries(newOverdueEntries);
+                setLoading(false);
+            });
+            return () => unsubReaders();
         });
-        // Sort by most days overdue
-        newOverdueEntries.sort((a, b) => b.daysOverdue - a.daysOverdue);
-        setOverdueEntries(newOverdueEntries);
+        return () => unsubBooks();
     });
 
-    return () => unsubscribe();
+    return () => unsubBorrowals();
   }, []);
   
   const handleNotify = async (entry: OverdueEntry) => {
+      if (!entry.userId) {
+          toast({ 
+            variant: 'destructive', 
+            title: '❌ Error', 
+            description: 'User ID is missing. Cannot send notification.' 
+          });
+          return;
+      }
       try {
         const response = await fetch('/api/notifications', {
             method: 'POST',
@@ -105,7 +120,9 @@ export default function OverdueBooks() {
         <CardDescription>Books that are past their due date.</CardDescription>
       </CardHeader>
       <CardContent>
-        {overdueEntries.length > 0 ? (
+        {loading ? (
+          <div className="text-center text-muted-foreground p-8">Loading...</div>
+        ) : overdueEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
