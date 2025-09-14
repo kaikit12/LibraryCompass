@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Book, Reader } from '@/lib/types';
+import { Book } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookCopy, Users, Library, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/firebase';
@@ -34,10 +34,9 @@ export default function StatsCards({ }: StatsCardsProps) {
 
     const fetchOverdue = async () => {
         const today = new Date();
-        const borrowalsRef = collection(db, "books");
+        const booksSnapshot = await getDocs(collection(db, "books"));
         let overdueBooks = 0;
 
-        const booksSnapshot = await getDocs(borrowalsRef);
         for(const bookDoc of booksSnapshot.docs) {
             const borrowalsColRef = collection(db, "books", bookDoc.id, "borrowals");
             const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", today));

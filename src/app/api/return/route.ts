@@ -20,11 +20,18 @@ export async function POST(request: Request) {
         const bookRef = doc(db, 'books', bookId);
         const readerRef = doc(db, 'readers', readerId);
 
+        // This transaction needs the reader doc for updates later
+        const readerDoc = await transaction.get(readerRef);
+        if (!readerDoc.exists()) {
+          throw new Error("Reader not found.");
+        }
+
         // Get the specific borrowal record
         const borrowalsRef = collection(db, 'books', bookId, 'borrowals');
         const q = query(borrowalsRef, where("readerId", "==", readerId), where("status", "==", "borrowed"));
         
-        const borrowalSnapshot = await transaction.get(q);
+        // This get() must be inside the transaction to be atomic
+        const borrowalSnapshot = await getDocs(q);
 
         if (borrowalSnapshot.empty) {
              throw new Error('Return not found. No active borrowal record for this reader and book.');

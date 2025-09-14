@@ -6,10 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { differenceInDays, parseISO, format } from 'date-fns';
+import { differenceInDays, format } from 'date-fns';
 import { Bell } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where, getDocs, DocumentData } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 interface OverdueEntry {
   bookTitle: string;
@@ -56,10 +56,13 @@ export default function OverdueBooks() {
       setOverdueEntries(newOverdueEntries);
     };
 
-    fetchData();
+    const unsubscribe = onSnapshot(collection(db, "books"), fetchData);
     const interval = setInterval(fetchData, 60000); // Refresh every minute
 
-    return () => clearInterval(interval);
+    return () => {
+        unsubscribe();
+        clearInterval(interval);
+    }
   }, []);
   
   const handleNotify = (bookTitle: string, readerName: string) => {

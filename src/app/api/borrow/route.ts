@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, increment, arrayUnion } from 'firebase/firestore';
+import { doc, runTransaction, increment, arrayUnion, collection } from 'firebase/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       if (bookData.available - 1 === 0) {
         transaction.update(bookRef, { status: 'Borrowed' });
       }
-
+      
       // Add a record to a subcollection for this specific borrow instance
       const borrowLogRef = doc(collection(db, 'books', bookId, 'borrowals'));
       transaction.set(borrowLogRef, {
