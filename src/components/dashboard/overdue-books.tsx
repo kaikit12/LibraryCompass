@@ -88,7 +88,7 @@ export default function OverdueBooks() {
         }
       });
     } else {
-        toast({ variant: 'destructive', title: 'Permission Denied', description: 'Notifications are blocked. Please enable them in your browser settings.' });
+        toast({ variant: 'destructive', title: 'Permission Denied', description: 'Notifications are blocked. Please check your browser settings.' });
     }
   };
 
