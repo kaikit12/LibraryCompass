@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from "@/context/auth-context";
@@ -17,10 +18,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const isPublicRoute = publicRoutes.includes(pathname);
 
+    // If the user is not logged in and is trying to access a protected route, redirect to login.
     if (!user && !isPublicRoute) {
       router.push("/login");
-    } else if (user && isPublicRoute) {
-      router.push("/");
+    } 
+    
+    // If the user is logged in and is on a public route, redirect them to the appropriate page.
+    else if (user && isPublicRoute) {
+      if (user.role === 'reader') {
+        router.push("/books");
+      } else {
+        router.push("/");
+      }
     }
   }, [user, loading, router, pathname]);
 
