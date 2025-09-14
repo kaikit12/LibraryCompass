@@ -35,7 +35,7 @@ export default function OverdueBooks() {
             const unsubReaders = onSnapshot(readersQuery, (readersSnapshot) => {
                 setLoading(true);
                 const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
-                const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
+                const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() } as Reader]));
                 
                 const newOverdueEntries: OverdueEntry[] = [];
                 const today = new Date();
@@ -51,11 +51,11 @@ export default function OverdueBooks() {
                         if (user && book) {
                             const daysOverdue = differenceInDays(today, dueDate);
                             newOverdueEntries.push({
-                                userId: user.id,
+                                userId: borrowalData.userId, // Directly use the ID from the borrowal record
                                 bookTitle: book.title,
                                 userName: user.name,
                                 dueDate: format(dueDate, 'PPP'),
-                                daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
+                                daysOverdue: daysOverdue > 0 ? daysOverdue : 1, // Show at least 1 day overdue
                             });
                         }
                     }
