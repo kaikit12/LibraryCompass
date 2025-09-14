@@ -39,20 +39,21 @@ export function UserActions({ }: UserActionsProps) {
   const [selectedUserForReco, setSelectedUserForReco] = useState<User | null>(null);
 
   useEffect(() => {
-    const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
-        const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
-        setBooks(liveBooks);
-    });
-      
     const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const liveUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as User));
       setUsers(liveUsers);
     });
 
-    return () => {
-        unsubscribeUsers();
-        unsubscribeBooks();
-    }
+    return () => unsubscribeUsers();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
+        const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+        setBooks(liveBooks);
+    });
+      
+    return () => unsubscribeBooks();
   }, []);
 
   const enrichedUsers = useMemo(() => {
@@ -324,5 +325,3 @@ export function UserActions({ }: UserActionsProps) {
     </Card>
   );
 }
-
-    
