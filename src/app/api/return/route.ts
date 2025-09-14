@@ -13,32 +13,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Book ID and User ID are required.' }, { status: 400 });
     }
 
+    // Step 1: Find the active borrowal record OUTSIDE the transaction.
+    // This is crucial because you cannot run arbitrary queries after writes in a transaction.
+    const borrowalsRef = collection(db, 'borrowals');
+    const q = query(borrowalsRef, where("bookId", "==", bookId), where("userId", "==", userId), where("status", "==", "borrowed"));
+    
+    const borrowalSnapshot = await getDocs(q);
+
+    if (borrowalSnapshot.empty) {
+        throw new Error('Return not found. No active borrowal record for this user and book.');
+    }
+    
+    // Assuming a user can only borrow one copy of a book at a time.
+    const borrowalDoc = borrowalSnapshot.docs[0];
+    const borrowalDocRef = borrowalDoc.ref; // Get the reference to the document
+
     let lateFee = 0;
     let daysLate = 0;
-
+    
+    // Step 2: Perform all writes within the transaction.
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
         const userRef = doc(db, 'users', userId);
 
+        // Read documents needed for the transaction
         const userDoc = await transaction.get(userRef);
+        const currentBorrowalDoc = await transaction.get(borrowalDocRef); // Re-read inside transaction for safety
+
         if (!userDoc.exists()) {
           throw new Error("Reader not found.");
         }
-
-        // Get the specific borrowal record from the root collection
-        const borrowalsRef = collection(db, 'borrowals');
-        const q = query(borrowalsRef, where("bookId", "==", bookId), where("userId", "==", userId), where("status", "==", "borrowed"));
-        
-        // This must be a getDocs outside the transaction to read first, then update.
-        const borrowalSnapshot = await getDocs(q);
-
-        if (borrowalSnapshot.empty) {
-             throw new Error('Return not found. No active borrowal record for this user and book.');
+        if (!currentBorrowalDoc.exists()){
+            throw new Error("Borrowal record disappeared during transaction.");
         }
 
-        // Assuming a user can only borrow one copy of a book at a time.
-        const borrowalDoc = borrowalSnapshot.docs[0];
-        const borrowalData = borrowalDoc.data();
+        const borrowalData = currentBorrowalDoc.data();
         const dueDate = borrowalData.dueDate.toDate();
         const returnDate = new Date();
 
@@ -47,6 +56,7 @@ export async function POST(request: Request) {
           lateFee = daysLate * LATE_FEE_PER_DAY;
         }
 
+        // Perform writes
         // Update book: increment available copies
         transaction.update(bookRef, {
             available: increment(1),
@@ -64,7 +74,7 @@ export async function POST(request: Request) {
         transaction.update(userRef, userUpdate);
 
         // Update the specific borrowal record to 'returned'
-        transaction.update(borrowalDoc.ref, {
+        transaction.update(borrowalDocRef, {
             status: 'returned',
             returnedAt: returnDate,
         });
@@ -77,6 +87,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, message });
   } catch (error: any) {
+    console.error("Return API error:", error);
     return NextResponse.json({ success: false, message: error.message || 'An unexpected error occurred.' }, { status: 500 });
   }
 }
