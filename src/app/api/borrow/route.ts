@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, runTransaction, increment, arrayUnion } from 'firebase/firestore';
-import { addDays, formatISO } from 'date-fns';
 
 export async function POST(request: Request) {
   try {
-    const { bookId, readerId } = await request.json();
+    const { bookId, readerId, dueDate } = await request.json();
 
-    if (!bookId || !readerId) {
-      return NextResponse.json({ success: false, message: 'Book ID and Reader ID are required.' }, { status: 400 });
+    if (!bookId || !readerId || !dueDate) {
+      return NextResponse.json({ success: false, message: 'Book ID, Reader ID, and Due Date are required.' }, { status: 400 });
     }
 
     await runTransaction(db, async (transaction) => {
@@ -31,13 +30,11 @@ export async function POST(request: Request) {
         throw new Error('Book is already borrowed.');
       }
 
-      const dueDate = addDays(new Date(), 7);
-
       // Update book
       transaction.update(bookRef, {
         status: 'Borrowed',
         borrowedBy: readerId,
-        dueDate: formatISO(dueDate),
+        dueDate: dueDate,
       });
 
       // Update reader

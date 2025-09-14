@@ -13,7 +13,6 @@ export interface Reader {
   name: string;
   email: string;
   phone: string;
-  borrowingHistory: string[]; // array of book titles, dynamically created for AI flow
   booksOut: number;
   borrowedBooks: string[]; // array of book ids
 }

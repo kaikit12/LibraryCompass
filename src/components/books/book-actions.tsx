@@ -17,7 +17,8 @@ import { MoreHorizontal, PlusCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { db } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot, increment, arrayRemove } from "firebase/firestore";
+import { BorrowDialog } from "./borrow-dialog";
 
 interface BookActionsProps {
 }
@@ -34,16 +35,16 @@ export function BookActions({ }: BookActionsProps) {
   const [isBorrowOpen, setIsBorrowOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [editingBook, setEditingBook] = useState<Partial<Book> | null>(null);
-  const [selectedReaderId, setSelectedReaderId] = useState<string>('');
   
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "books"), (snapshot) => {
       const liveBooks = snapshot.docs.map(doc => {
           const data = doc.data();
+          const dueDate = data.dueDate;
           return { 
               id: doc.id, 
               ...data,
-              dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
+              dueDate: dueDate ? (typeof dueDate === 'string' ? dueDate : dueDate.toDate().toISOString()) : undefined
           } as Book
       });
       setBooks(liveBooks);
@@ -122,29 +123,7 @@ export function BookActions({ }: BookActionsProps) {
 
   const handleOpenBorrow = (book: Book) => {
     setSelectedBook(book);
-    setSelectedReaderId('');
     setIsBorrowOpen(true);
-  };
-
-  const handleConfirmBorrow = async () => {
-    if (!selectedBook || !selectedReaderId) return;
-    
-    try {
-        const response = await fetch('/api/borrow', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookId: selectedBook.id, readerId: selectedReaderId }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message);
-        
-        const reader = readers.find(r => r.id === selectedReaderId);
-        toast({ title: '✅ Borrow successful!', description: `"${selectedBook.title}" borrowed by ${reader?.name}.`});
-        setIsBorrowOpen(false);
-        setSelectedBook(null);
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: '❌ Borrow failed', description: error.message});
-    }
   };
 
   const handleReturnBook = async (book: Book) => {
@@ -313,33 +292,15 @@ export function BookActions({ }: BookActionsProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
-        {/* Borrow Dialog */}
-        <Dialog open={isBorrowOpen} onOpenChange={setIsBorrowOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Borrow Book: {selectedBook?.title}</DialogTitle>
-              <DialogDescription>Select a reader to borrow this book.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label htmlFor="reader">Reader</Label>
-              <Select onValueChange={setSelectedReaderId}>
-                  <SelectTrigger>
-                      <SelectValue placeholder="Select a reader" />
-                  </SelectTrigger>
-                  <SelectContent>
-                      {readers.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                  </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-               <DialogClose asChild>
-                <Button type="button" variant="secondary">Cancel</Button>
-              </DialogClose>
-              <Button onClick={handleConfirmBorrow} disabled={!selectedReaderId}>Confirm Borrow</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+
+        {selectedBook && (
+            <BorrowDialog 
+                book={selectedBook}
+                readers={readers}
+                isOpen={isBorrowOpen}
+                setIsOpen={setIsBorrowOpen}
+            />
+        )}
       </CardContent>
     </Card>
   );
