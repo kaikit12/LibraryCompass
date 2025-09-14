@@ -15,9 +15,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, PlusCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO } from 'date-fns';
 import { db } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot, increment, arrayRemove } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { BorrowDialog } from "./borrow-dialog";
 
 interface BookActionsProps {
@@ -40,11 +39,9 @@ export function BookActions({ }: BookActionsProps) {
     const unsubscribe = onSnapshot(collection(db, "books"), (snapshot) => {
       const liveBooks = snapshot.docs.map(doc => {
           const data = doc.data();
-          const dueDate = data.dueDate;
           return { 
               id: doc.id, 
               ...data,
-              dueDate: dueDate ? (typeof dueDate === 'string' ? dueDate : dueDate.toDate().toISOString()) : undefined
           } as Book
       });
       setBooks(liveBooks);
@@ -70,7 +67,7 @@ export function BookActions({ }: BookActionsProps) {
   }, [books, searchTerm, statusFilter, genreFilter]);
 
   const handleOpenAdd = () => {
-    setEditingBook({});
+    setEditingBook({ quantity: 1, available: 1 });
     setIsAddEditOpen(true);
   }
 
@@ -80,8 +77,16 @@ export function BookActions({ }: BookActionsProps) {
   }
   
   const handleSaveBook = async () => {
-    if (!editingBook?.title || !editingBook?.author || !editingBook?.genre) {
+    if (!editingBook?.title || !editingBook?.author || !editingBook?.genre || editingBook?.quantity === undefined) {
       toast({ variant: 'destructive', title: '❌ Error', description: 'Please fill all required fields.'});
+      return;
+    }
+    
+    const quantity = Number(editingBook.quantity)
+    const available = editingBook.id ? Number(editingBook.available) : quantity;
+
+     if (isNaN(quantity) || quantity < 0) {
+      toast({ variant: 'destructive', title: '❌ Error', description: 'Quantity must be a non-negative number.' });
       return;
     }
 
@@ -93,6 +98,7 @@ export function BookActions({ }: BookActionsProps) {
             title: editingBook.title,
             author: editingBook.author,
             genre: editingBook.genre,
+            quantity: quantity,
         });
         toast({ title: '✅ Book Updated', description: `"${editingBook.title}" has been updated.`});
       } else {
@@ -101,7 +107,9 @@ export function BookActions({ }: BookActionsProps) {
             title: editingBook.title,
             author: editingBook.author,
             genre: editingBook.genre,
-            status: 'Available'
+            quantity: quantity,
+            available: available,
+            status: available > 0 ? 'Available' : 'Borrowed'
         });
         toast({ title: '✅ Book Added', description: `"${editingBook.title}" has been added to the library.`});
       }
@@ -125,27 +133,29 @@ export function BookActions({ }: BookActionsProps) {
     setSelectedBook(book);
     setIsBorrowOpen(true);
   };
-
-  const handleReturnBook = async (book: Book) => {
-    if (!book.borrowedBy) return;
+  
+  const handleReturnBookByTitle = async (book: Book) => {
+    const readerWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
+    if (!readerWithBook) {
+      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has borrowed this book."});
+      return;
+    }
+    
     try {
         const response = await fetch('/api/return', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookId: book.id, readerId: book.borrowedBy }),
+            body: JSON.stringify({ bookId: book.id, readerId: readerWithBook.id }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message);
 
-        toast({ title: '✅ Return successful!', description: `"${book.title}" has been returned.`});
+        toast({ title: '✅ Return successful!', description: data.message});
     } catch (error: any) {
          toast({ variant: 'destructive', title: '❌ Return failed', description: error.message});
     }
   };
 
-  const getReaderName = (readerId?: string) => {
-    return readers.find(r => r.id === readerId)?.name || 'N/A';
-  }
 
   return (
     <Card>
@@ -188,9 +198,8 @@ export function BookActions({ }: BookActionsProps) {
               <TableHead>Title</TableHead>
               <TableHead>Author</TableHead>
               <TableHead>Genre</TableHead>
+              <TableHead>Availability</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Borrowed By</TableHead>
-              <TableHead>Due Date</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -200,13 +209,12 @@ export function BookActions({ }: BookActionsProps) {
                 <TableCell className="font-medium">{book.title}</TableCell>
                 <TableCell>{book.author}</TableCell>
                 <TableCell><Badge variant="secondary">{book.genre}</Badge></TableCell>
+                <TableCell>{book.available} / {book.quantity}</TableCell>
                 <TableCell>
                   <Badge variant={book.status === 'Available' ? 'default' : 'destructive'} className={book.status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                     {book.status}
                   </Badge>
                 </TableCell>
-                <TableCell>{getReaderName(book.borrowedBy)}</TableCell>
-                <TableCell>{book.dueDate ? format(parseISO(book.dueDate), 'PPP') : 'N/A'}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -217,11 +225,12 @@ export function BookActions({ }: BookActionsProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      {book.status === 'Available' ? (
-                        <DropdownMenuItem onClick={() => handleOpenBorrow(book)}>Borrow</DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem onClick={() => handleReturnBook(book)}>Return</DropdownMenuItem>
-                      )}
+                      <DropdownMenuItem onClick={() => handleOpenBorrow(book)} disabled={book.available === 0}>
+                        Borrow
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleReturnBookByTitle(book)} disabled={book.available === book.quantity}>
+                        Return
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => handleOpenEdit(book)}>Edit</DropdownMenuItem>
                       <AlertDialog>
@@ -245,7 +254,7 @@ export function BookActions({ }: BookActionsProps) {
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   No books found.
                 </TableCell>
               </TableRow>
@@ -282,6 +291,10 @@ export function BookActions({ }: BookActionsProps) {
                         {genres.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                     </SelectContent>
                 </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quantity" className="text-right">Quantity</Label>
+                <Input id="quantity" type="number" value={editingBook?.quantity || 1} onChange={e => setEditingBook({...editingBook, quantity: Number(e.target.value)})} className="col-span-3" />
               </div>
             </div>
             <DialogFooter>

@@ -33,14 +33,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
   useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
-        const liveBooks = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return { 
-                id: doc.id, 
-                ...data,
-                dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
-            } as Book
-        });
+        const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
         setBooks(liveBooks);
     });
       
@@ -48,7 +41,6 @@ export function ReaderActions({ }: ReaderActionsProps) {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
       setReaders(liveReaders);
     });
-
 
     return () => {
         unsubscribeReaders();
@@ -63,8 +55,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
     return readers.map(reader => {
         const borrowedBookTitles = (reader.borrowedBooks || [])
-            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
-            .filter((t): t is string => !!t);
+            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book');
 
         return {
             ...reader,
@@ -85,7 +76,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
   }
 
   const handleOpenAdd = () => {
-    setEditingReader({});
+    setEditingReader({ lateFees: 0 });
     setIsAddEditOpen(true);
   };
 
@@ -107,6 +98,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 name: editingReader.name,
                 email: editingReader.email,
                 phone: editingReader.phone || '',
+                lateFees: Number(editingReader.lateFees) || 0,
             });
             toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
         } else {
@@ -116,6 +108,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 phone: editingReader.phone || '',
                 booksOut: 0,
                 borrowedBooks: [],
+                lateFees: 0,
             });
             toast({ title: '✅ Reader Added', description: `${editingReader.name} has been added.`});
         }
@@ -146,6 +139,10 @@ export function ReaderActions({ }: ReaderActionsProps) {
     setSelectedReaderForReco(reader);
     setIsRecoDialogOpen(true);
   }
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  }
 
   return (
     <Card>
@@ -166,8 +163,8 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
                 <TableHead>Books Out</TableHead>
+                <TableHead>Late Fees</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
@@ -176,9 +173,13 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 <TableRow key={reader.id}>
                     <TableCell className="font-medium">{reader.name}</TableCell>
                     <TableCell>{reader.email}</TableCell>
-                    <TableCell>{reader.phone || 'N/A'}</TableCell>
                     <TableCell>
-                    <Badge variant="outline">{getBorrowedBooksCount(reader.id)}</Badge>
+                      <Badge variant="outline">{getBorrowedBooksCount(reader.id)}</Badge>
+                    </TableCell>
+                    <TableCell>
+                        <Badge variant={reader.lateFees > 0 ? 'destructive' : 'secondary'}>
+                            {formatCurrency(reader.lateFees || 0)}
+                        </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                     <DropdownMenu>
@@ -243,6 +244,10 @@ export function ReaderActions({ }: ReaderActionsProps) {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="phone" className="text-right">Phone</Label>
                 <Input id="phone" value={editingReader?.phone || ''} onChange={e => setEditingReader({...editingReader, phone: e.target.value})} className="col-span-3" />
+              </div>
+               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="lateFees" className="text-right">Late Fees</Label>
+                <Input id="lateFees" type="number" value={editingReader?.lateFees || 0} onChange={e => setEditingReader({...editingReader, lateFees: Number(e.target.value)})} className="col-span-3" />
               </div>
             </div>
             <DialogFooter>

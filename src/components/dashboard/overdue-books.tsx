@@ -6,49 +6,61 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { differenceInDays, parseISO } from 'date-fns';
+import { differenceInDays, parseISO, format } from 'date-fns';
 import { Bell } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, DocumentData } from 'firebase/firestore';
 
-
-interface OverdueBooksProps {
+interface OverdueEntry {
+  bookTitle: string;
+  readerName: string;
+  dueDate: string;
+  daysOverdue: number;
 }
 
-export default function OverdueBooks({ }: OverdueBooksProps) {
+export default function OverdueBooks() {
   const { toast } = useToast();
-  const [books, setBooks] = useState<Book[]>([]);
-  const [readers, setReaders] = useState<Reader[]>([]);
+  const [overdueEntries, setOverdueEntries] = useState<OverdueEntry[]>([]);
 
   useEffect(() => {
-    const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
-       const liveBooks = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return { 
-              id: doc.id, 
-              ...data,
-              dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
-          } as Book
-      });
-      setBooks(liveBooks);
-    });
-     const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
-      setReaders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader)));
-    });
+    const fetchData = async () => {
+      const booksSnapshot = await getDocs(collection(db, "books"));
+      const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
 
-    return () => {
-        unsubscribeBooks();
-        unsubscribeReaders();
+      const readersSnapshot = await getDocs(collection(db, "readers"));
+      const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
+      
+      const today = new Date();
+      const newOverdueEntries: OverdueEntry[] = [];
+
+      for (const [bookId, book] of booksMap.entries()) {
+        const borrowalsColRef = collection(db, "books", bookId, "borrowals");
+        const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", today));
+        const overdueSnapshot = await getDocs(q);
+
+        overdueSnapshot.forEach(doc => {
+          const borrowalData = doc.data();
+          const reader = readersMap.get(borrowalData.readerId);
+          if (reader) {
+            const dueDate = borrowalData.dueDate.toDate();
+            const daysOverdue = differenceInDays(today, dueDate);
+            newOverdueEntries.push({
+              bookTitle: book.title,
+              readerName: reader.name,
+              dueDate: format(dueDate, 'PPP'),
+              daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
+            });
+          }
+        });
+      }
+      setOverdueEntries(newOverdueEntries);
     };
+
+    fetchData();
+    const interval = setInterval(fetchData, 60000); // Refresh every minute
+
+    return () => clearInterval(interval);
   }, []);
-
-  const overdueBooks = books.filter(book => 
-    book.status === 'Borrowed' && book.dueDate && new Date(book.dueDate) < new Date()
-  );
-
-  const getReaderName = (readerId?: string) => {
-    return readers.find(r => r.id === readerId)?.name || 'Unknown Reader';
-  };
   
   const handleNotify = (bookTitle: string, readerName: string) => {
     toast({
@@ -57,11 +69,6 @@ export default function OverdueBooks({ }: OverdueBooksProps) {
     });
   };
 
-  const getDaysOverdue = (dueDate: string) => {
-    const days = differenceInDays(new Date(), parseISO(dueDate));
-    return days > 0 ? days : 1; // Show at least 1 day if overdue
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -69,27 +76,29 @@ export default function OverdueBooks({ }: OverdueBooksProps) {
         <CardDescription>Books that are past their due date.</CardDescription>
       </CardHeader>
       <CardContent>
-        {overdueBooks.length > 0 ? (
+        {overdueEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Book Title</TableHead>
                   <TableHead>Borrowed By</TableHead>
+                  <TableHead>Due Date</TableHead>
                   <TableHead>Days Overdue</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {overdueBooks.map((book) => (
-                  <TableRow key={book.id}>
-                    <TableCell className="font-medium">{book.title}</TableCell>
-                    <TableCell>{getReaderName(book.borrowedBy)}</TableCell>
+                {overdueEntries.map((entry, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{entry.bookTitle}</TableCell>
+                    <TableCell>{entry.readerName}</TableCell>
+                    <TableCell>{entry.dueDate}</TableCell>
                     <TableCell>
-                      <Badge variant="destructive">{getDaysOverdue(book.dueDate!)} days</Badge>
+                      <Badge variant="destructive">{entry.daysOverdue} days</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleNotify(book.title, getReaderName(book.borrowedBy))}>
+                      <Button variant="outline" size="sm" onClick={() => handleNotify(entry.bookTitle, entry.readerName)}>
                         <Bell className="mr-2 h-4 w-4" />
                         Notify
                       </Button>

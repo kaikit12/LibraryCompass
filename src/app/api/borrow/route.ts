@@ -26,16 +26,29 @@ export async function POST(request: Request) {
       
       const bookData = bookDoc.data();
       
-      if (bookData.status === 'Borrowed') {
-        throw new Error('Book is already borrowed.');
+      if (bookData.available <= 0) {
+        throw new Error('No copies of this book are available.');
       }
 
-      // Update book
+      // Update book - decrement available copies
       transaction.update(bookRef, {
-        status: 'Borrowed',
-        borrowedBy: readerId,
-        dueDate: dueDate,
+        available: increment(-1),
       });
+
+      // Update book status if it's the last copy
+      if (bookData.available - 1 === 0) {
+        transaction.update(bookRef, { status: 'Borrowed' });
+      }
+
+      // Add a record to a subcollection for this specific borrow instance
+      const borrowLogRef = doc(collection(db, 'books', bookId, 'borrowals'));
+      transaction.set(borrowLogRef, {
+        readerId: readerId,
+        borrowedAt: new Date(),
+        dueDate: new Date(dueDate),
+        status: 'borrowed'
+      });
+
 
       // Update reader
       transaction.update(readerRef, {

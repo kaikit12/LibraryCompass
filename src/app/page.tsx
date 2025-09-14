@@ -1,8 +1,5 @@
 import StatsCards from '@/components/dashboard/stats-cards';
 import OverdueBooks from '@/components/dashboard/overdue-books';
-import { db } from '@/lib/firebase';
-import type { Book, Reader } from '@/lib/types';
-import { collection, getDocs } from 'firebase/firestore';
 
 export default async function DashboardPage() {
   

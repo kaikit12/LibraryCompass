@@ -6,6 +6,8 @@ export interface Book {
   status: 'Available' | 'Borrowed';
   borrowedBy?: string; // readerId
   dueDate?: string; // ISO string
+  quantity: number;
+  available: number;
 }
 
 export interface Reader {
@@ -15,4 +17,5 @@ export interface Reader {
   phone: string;
   booksOut: number;
   borrowedBooks: string[]; // array of book ids
+  lateFees: number;
 }
