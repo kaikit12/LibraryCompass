@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, format } from 'date-fns';
 import { Bell } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 
 interface OverdueEntry {
   bookTitle: string;
