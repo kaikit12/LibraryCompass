@@ -43,7 +43,7 @@ export function BorrowDialog({
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user?.role === 'reader' && user?.id) {
+    if (isOpen && user?.role === 'reader' && user?.id) {
         setSelectedReaderId(user.id);
     }
   }, [user, isOpen]);
