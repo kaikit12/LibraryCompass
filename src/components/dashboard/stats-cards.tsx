@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookCopy, Users, Library, AlertTriangle, DollarSign } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, getDocs, query, where } from 'firebase/firestore';
+import { Progress } from '@/components/ui/progress';
 
 interface StatsCardsProps {
 }
@@ -66,24 +67,32 @@ export default function StatsCards({ }: StatsCardsProps) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   }
 
+  const borrowedPercentage = totalBookCopies > 0 ? (borrowedBooksCount / totalBookCopies) * 100 : 0;
+
   const stats = [
     { title: 'Total Book Copies', value: totalBookCopies, icon: Library },
-    { title: 'Books Borrowed', value: borrowedBooksCount, icon: BookCopy },
+    { title: 'Books Borrowed', value: borrowedBooksCount, icon: BookCopy, progress: borrowedPercentage, description: `${borrowedPercentage.toFixed(0)}% of all books` },
     { title: 'Total Readers', value: totalReaders, icon: Users },
     { title: 'Overdue Books', value: overdueCount, icon: AlertTriangle },
     { title: 'Late Fee Revenue', value: formatCurrency(lateFeeRevenue), icon: DollarSign }
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
       {stats.map((stat, index) => (
-        <Card key={stat.title} className={index === 4 ? "lg:col-span-2 xl:col-span-1" : ""}>
+        <Card key={stat.title}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
             <stat.icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-headline">{stat.value}</div>
+            {stat.progress !== undefined && (
+              <>
+                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                <Progress value={stat.progress} className="mt-2 h-2" />
+              </>
+            )}
           </CardContent>
         </Card>
       ))}
