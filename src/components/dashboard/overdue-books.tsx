@@ -12,6 +12,7 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 
 interface OverdueEntry {
+  userId: string;
   bookTitle: string;
   userName: string;
   dueDate: string;
@@ -24,7 +25,7 @@ export default function OverdueBooks() {
 
   useEffect(() => {
     const borrowalsColRef = collection(db, "borrowals");
-    const q = query(borrowalsColRef, where("status", "==", "borrowed"));
+    const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("isOverdue", "==", true));
 
     const unsubscribe = onSnapshot(q, async (borrowalsSnapshot) => {
         const booksSnapshot = await getDocs(collection(db, "books"));
@@ -37,21 +38,18 @@ export default function OverdueBooks() {
         borrowalsSnapshot.forEach(doc => {
             const borrowalData = doc.data();
             const dueDate = borrowalData.dueDate.toDate();
+            const user = readersMap.get(borrowalData.userId);
+            const book = booksMap.get(borrowalData.bookId);
 
-            // Client-side filtering for overdue books
-            if (isPast(dueDate)) {
-                const user = readersMap.get(borrowalData.userId);
-                const book = booksMap.get(borrowalData.bookId);
-
-                if (user && book) {
-                    const daysOverdue = differenceInDays(new Date(), dueDate);
-                    newOverdueEntries.push({
-                        bookTitle: book.title,
-                        userName: user.name,
-                        dueDate: format(dueDate, 'PPP'),
-                        daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
-                    });
-                }
+            if (user && book) {
+                const daysOverdue = differenceInDays(new Date(), dueDate);
+                newOverdueEntries.push({
+                    userId: user.id,
+                    bookTitle: book.title,
+                    userName: user.name,
+                    dueDate: format(dueDate, 'PPP'),
+                    daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
+                });
             }
         });
         setOverdueEntries(newOverdueEntries);
@@ -60,36 +58,36 @@ export default function OverdueBooks() {
     return () => unsubscribe();
   }, []);
   
-  const handleNotify = (bookTitle: string, userName: string) => {
-    const showNotification = () => {
-      new Notification('Overdue Book Reminder', {
-        body: `Hi ${userName}, the book "${bookTitle}" is overdue. Please return it soon.`,
-        icon: '/favicon.ico' // Optional: you can add an icon
-      });
-      toast({
-        title: '✅ Notification Sent',
-        description: `A reminder for "${bookTitle}" has been sent to ${userName}.`,
-      });
-    };
+  const handleNotify = async (entry: OverdueEntry) => {
+      try {
+        const response = await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                action: 'create-notification',
+                userId: entry.userId,
+                message: `Your borrowed book "${entry.bookTitle}" is ${entry.daysOverdue} days overdue. Please return it as soon as possible.`,
+                type: 'warning'
+            }),
+        });
 
-    if (!('Notification' in window)) {
-      toast({ variant: 'destructive', title: 'Error', description: 'This browser does not support desktop notification.' });
-      return;
-    }
-
-    if (Notification.permission === 'granted') {
-      showNotification();
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then((permission) => {
-        if (permission === 'granted') {
-          showNotification();
-        } else {
-            toast({ title: '🔔 Notification Skipped', description: 'Permission was not granted for notifications.' });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to send notification.');
         }
-      });
-    } else {
-        toast({ variant: 'destructive', title: 'Permission Denied', description: 'Notifications are blocked. Please check your browser settings.' });
-    }
+
+        toast({
+            title: '✅ Reminder Sent',
+            description: `A notification has been sent to ${entry.userName}.`,
+        });
+
+      } catch (error: any) {
+           toast({ 
+            variant: 'destructive', 
+            title: '❌ Error', 
+            description: error.message || 'Could not send notification.' 
+        });
+      }
   };
 
   return (
@@ -121,7 +119,7 @@ export default function OverdueBooks() {
                       <Badge variant="destructive">{entry.daysOverdue} days</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleNotify(entry.bookTitle, entry.userName)}>
+                      <Button variant="outline" size="sm" onClick={() => handleNotify(entry)}>
                         <Bell className="mr-2 h-4 w-4" />
                         Notify
                       </Button>

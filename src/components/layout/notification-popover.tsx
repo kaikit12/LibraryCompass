@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Bell, CheckCheck, Trash2 } from 'lucide-react';
@@ -53,38 +53,23 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
         return () => unsubscribe();
     }, [userId, toast]);
 
-    const handleMarkAllRead = async () => {
-        const unreadNotifs = notifications.filter(n => !n.isRead);
-        if (unreadNotifs.length === 0) return;
-
-        const batch = writeBatch(db);
-        unreadNotifs.forEach(notif => {
-            const notifRef = doc(db, 'users', userId, 'notifications', notif.id);
-            batch.update(notifRef, { isRead: true });
-        });
-
-        try {
-            await batch.commit();
-        } catch (error) {
-            console.error("Error marking all as read:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not update notifications.' });
+    const handleAction = async (action: 'mark-all-read' | 'clear-all') => {
+        if ((action === 'mark-all-read' && unreadCount === 0) || (action === 'clear-all' && notifications.length === 0)) {
+            return;
         }
-    };
-    
-    const handleClearAll = async () => {
-        if (notifications.length === 0) return;
-        
-        const batch = writeBatch(db);
-        notifications.forEach(notif => {
-            const notifRef = doc(db, 'users', userId, 'notifications', notif.id);
-            batch.delete(notifRef);
-        });
 
         try {
-            await batch.commit();
-        } catch (error) {
-            console.error("Error clearing notifications:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not clear notifications.' });
+             const response = await fetch('/api/notifications', {
+                method: action === 'clear-all' ? 'DELETE' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, action }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message);
+            // State will be updated by the onSnapshot listener, so no need to toast here
+        } catch (error: any) {
+            console.error(`Error with ${action}:`, error);
+            toast({ variant: 'destructive', title: 'Error', description: `Could not ${action.replace('-', ' ')}.` });
         }
     };
 
@@ -136,11 +121,11 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
                 </ScrollArea>
                  <Separator />
                  <div className="p-2 flex justify-between">
-                     <Button variant="ghost" size="sm" onClick={handleMarkAllRead} disabled={unreadCount === 0}>
+                     <Button variant="ghost" size="sm" onClick={() => handleAction('mark-all-read')} disabled={unreadCount === 0}>
                          <CheckCheck className="mr-2 h-4 w-4" />
                          Mark all as read
                      </Button>
-                     <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={notifications.length === 0} className="text-destructive hover:text-destructive">
+                     <Button variant="ghost" size="sm" onClick={() => handleAction('clear-all')} disabled={notifications.length === 0} className="text-destructive hover:text-destructive">
                          <Trash2 className="mr-2 h-4 w-4" />
                          Clear all
                      </Button>
