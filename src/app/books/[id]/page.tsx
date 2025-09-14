@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Book, Reader } from "@/lib/types";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection } from "firebase/firestore";
+import { doc, onSnapshot, collection, Unsubscribe } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ export default function BookDetailPage() {
   const [isBorrowOpen, setIsBorrowOpen] = useState(false);
   
   useEffect(() => {
-    if (!bookId) return;
+    if (!bookId || !currentUser) return;
     setLoading(true);
     const bookRef = doc(db, "books", bookId);
     const unsubscribeBook = onSnapshot(bookRef, (doc) => {
@@ -41,20 +41,31 @@ export default function BookDetailPage() {
       setLoading(false);
     });
 
-    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
-        const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
-        setReaders(liveReaders);
-    });
+    let unsubscribeReaders: Unsubscribe | undefined;
+
+    if (currentUser.role === 'admin' || currentUser.role === 'librarian') {
+        unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+            const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+            setReaders(liveReaders);
+        });
+    } else {
+        // If the user is a reader, they don't need the full list.
+        // We just create a list containing only them to pass to the borrow dialog.
+        setReaders([currentUser]);
+    }
 
     return () => {
         unsubscribeBook();
-        unsubscribeReaders();
+        if (unsubscribeReaders) {
+            unsubscribeReaders();
+        }
     };
-  }, [bookId]);
+  }, [bookId, currentUser]);
 
   const handleReturnBook = async () => {
     if (!book) return;
     
+    // This logic is for librarians/admins, so `readers` will be populated.
     const readerWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
     
     if (!readerWithBook) {
