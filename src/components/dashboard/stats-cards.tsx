@@ -2,10 +2,11 @@
 import { useState, useEffect } from 'react';
 import { Book, Reader } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookCopy, Users, Library, AlertTriangle, DollarSign } from 'lucide-react';
+import { BookCopy, Users, Library, AlertTriangle, DollarSign, BookUp, BookDown, CalendarClock } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, getDocs, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { Progress } from '@/components/ui/progress';
+import { startOfDay, endOfDay } from 'date-fns';
 
 interface StatsCardsProps {
 }
@@ -16,6 +17,9 @@ export default function StatsCards({ }: StatsCardsProps) {
   const [totalReaders, setTotalReaders] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
   const [lateFeeRevenue, setLateFeeRevenue] = useState(0);
+  const [borrowedToday, setBorrowedToday] = useState(0);
+  const [dueToday, setDueToday] = useState(0);
+  const [returnedToday, setReturnedToday] = useState(0);
 
   useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
@@ -40,21 +44,47 @@ export default function StatsCards({ }: StatsCardsProps) {
       setLateFeeRevenue(fees);
     });
 
-    const fetchOverdue = async () => {
+    const fetchDailyStats = async () => {
         const today = new Date();
+        const startOfToday = startOfDay(today);
+        const endOfToday = endOfDay(today);
+
         const booksSnapshot = await getDocs(collection(db, "books"));
         let overdueBooks = 0;
+        let borrowedTodayCount = 0;
+        let dueTodayCount = 0;
+        let returnedTodayCount = 0;
 
         for(const bookDoc of booksSnapshot.docs) {
             const borrowalsColRef = collection(db, "books", bookDoc.id, "borrowals");
-            const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", today));
-            const overdueSnapshot = await getDocs(q);
+            
+            // Overdue
+            const overdueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", Timestamp.fromDate(today)));
+            const overdueSnapshot = await getDocs(overdueQuery);
             overdueBooks += overdueSnapshot.size;
+
+            // Borrowed Today
+            const borrowedQuery = query(borrowalsColRef, where("borrowedAt", ">=", Timestamp.fromDate(startOfToday)), where("borrowedAt", "<=", Timestamp.fromDate(endOfToday)));
+            const borrowedSnapshot = await getDocs(borrowedQuery);
+            borrowedTodayCount += borrowedSnapshot.size;
+
+            // Due Today
+            const dueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", ">=", Timestamp.fromDate(startOfToday)), where("dueDate", "<=", Timestamp.fromDate(endOfToday)));
+            const dueSnapshot = await getDocs(dueQuery);
+            dueTodayCount += dueSnapshot.size;
+
+            // Returned Today
+            const returnedQuery = query(borrowalsColRef, where("returnedAt", ">=", Timestamp.fromDate(startOfToday)), where("returnedAt", "<=", Timestamp.fromDate(endOfToday)));
+            const returnedSnapshot = await getDocs(returnedQuery);
+            returnedTodayCount += returnedSnapshot.size;
         }
         setOverdueCount(overdueBooks);
+        setBorrowedToday(borrowedTodayCount);
+        setDueToday(dueTodayCount);
+        setReturnedToday(returnedTodayCount);
     }
-    fetchOverdue();
-    const interval = setInterval(fetchOverdue, 60000); // Check for overdue books every minute
+    fetchDailyStats();
+    const interval = setInterval(fetchDailyStats, 60000); // Check for stats every minute
 
     return () => {
         unsubscribeBooks();
@@ -77,25 +107,47 @@ export default function StatsCards({ }: StatsCardsProps) {
     { title: 'Late Fee Revenue', value: formatCurrency(lateFeeRevenue), icon: DollarSign }
   ];
 
+  const dailyStats = [
+      { title: 'Borrowed Today', value: borrowedToday, icon: BookUp },
+      { title: 'Due Today', value: dueToday, icon: CalendarClock },
+      { title: 'Returned Today', value: returnedToday, icon: BookDown },
+  ]
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-      {stats.map((stat, index) => (
-        <Card key={stat.title}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-            <stat.icon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-headline">{stat.value}</div>
-            {stat.progress !== undefined && (
-              <>
-                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-                <Progress value={stat.progress} className="mt-2 h-2" />
-              </>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+    <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            {stats.map((stat, index) => (
+                <Card key={stat.title}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                    <stat.icon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold font-headline">{stat.value}</div>
+                    {stat.progress !== undefined && (
+                    <>
+                        <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                        <Progress value={stat.progress} className="mt-2 h-2" />
+                    </>
+                    )}
+                </CardContent>
+                </Card>
+            ))}
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+            {dailyStats.map((stat) => (
+                <Card key={stat.title}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                        <stat.icon className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold font-headline">{stat.value}</div>
+                        <p className="text-xs text-muted-foreground">on {new Date().toLocaleDateString()}</p>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
     </div>
   );
 }
