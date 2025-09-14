@@ -59,12 +59,12 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (isLogin) {
         await login(values.email, values.password);
         toast({ title: "✅ Login Successful", description: "Welcome back!" });
-        router.push("/");
+        // No need to redirect here, AuthGuard will handle it
       } else {
         const { name, email, password } = values as z.infer<typeof registerSchema>;
         await register(name, email, password);
         toast({ title: "✅ Registration Successful", description: "Your account has been created." });
-        router.push("/");
+        // No need to redirect here, AuthGuard will handle it
       }
     } catch (error: any) {
       console.error(error);
