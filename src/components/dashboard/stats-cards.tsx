@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Book } from '@/lib/types';
+import { Book, Reader } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookCopy, Users, Library, AlertTriangle } from 'lucide-react';
+import { BookCopy, Users, Library, AlertTriangle, DollarSign } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, getDocs, query, where } from 'firebase/firestore';
 
@@ -14,6 +14,7 @@ export default function StatsCards({ }: StatsCardsProps) {
   const [borrowedBooksCount, setBorrowedBooksCount] = useState(0);
   const [totalReaders, setTotalReaders] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
+  const [lateFeeRevenue, setLateFeeRevenue] = useState(0);
 
   useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
@@ -29,7 +30,13 @@ export default function StatsCards({ }: StatsCardsProps) {
     });
 
     const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+      let fees = 0;
+      snapshot.forEach(doc => {
+        const reader = doc.data() as Reader;
+        fees += reader.lateFees || 0;
+      });
       setTotalReaders(snapshot.size);
+      setLateFeeRevenue(fees);
     });
 
     const fetchOverdue = async () => {
@@ -54,18 +61,23 @@ export default function StatsCards({ }: StatsCardsProps) {
         clearInterval(interval);
     };
   }, []);
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  }
 
   const stats = [
     { title: 'Total Book Copies', value: totalBookCopies, icon: Library },
     { title: 'Books Borrowed', value: borrowedBooksCount, icon: BookCopy },
     { title: 'Total Readers', value: totalReaders, icon: Users },
     { title: 'Overdue Books', value: overdueCount, icon: AlertTriangle },
+    { title: 'Late Fee Revenue', value: formatCurrency(lateFeeRevenue), icon: DollarSign }
   ];
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => (
-        <Card key={stat.title}>
+      {stats.map((stat, index) => (
+        <Card key={stat.title} className={index === 4 ? "lg:col-span-2 xl:col-span-1" : ""}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
             <stat.icon className="h-4 w-4 text-muted-foreground" />
