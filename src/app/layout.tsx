@@ -33,7 +33,7 @@ export default function RootLayout({
                     <AppSidebar />
                     <SidebarInset>
                       <AppHeader />
-                      <div className="p-4 sm:p-6 md:p-8">
+                      <div className="p-4 md:p-6 lg:p-8">
                         {children}
                       </div>
                     </SidebarInset>

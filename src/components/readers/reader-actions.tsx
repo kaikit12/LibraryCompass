@@ -10,11 +10,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, PlusCircle, Search, Sparkles } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "../ui/badge";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { useAuth } from "@/context/auth-context";
 
@@ -29,7 +29,7 @@ const RoleBadge = ({ role }: { role: Reader['role'] }) => {
         : 'secondary';
     
     const className = 
-        role === 'admin' ? 'bg-primary/90'
+        role === 'admin' ? 'bg-primary/90 hover:bg-primary/80'
         : role === 'librarian' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
         : '';
 
@@ -50,7 +50,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
   const [editingReader, setEditingReader] = useState<Partial<Reader> | null>(null);
 
   useEffect(() => {
-    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as Reader));
       setReaders(liveReaders);
     });
@@ -114,7 +114,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
     try {
         if (editingReader.id) {
-            const readerRef = doc(db, 'readers', editingReader.id);
+            const readerRef = doc(db, 'users', editingReader.id);
             await updateDoc(readerRef, {
                 name: editingReader.name,
                 email: editingReader.email,
@@ -123,19 +123,8 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 role: editingReader.role || 'reader',
             });
             toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
-        } else {
-            // This path is less likely with auth in place, but kept for completeness
-            await addDoc(collection(db, 'readers'), {
-                name: editingReader.name,
-                email: editingReader.email,
-                phone: editingReader.phone || '',
-                booksOut: 0,
-                borrowedBooks: [],
-                lateFees: 0,
-                role: editingReader.role || 'reader',
-            });
-            toast({ title: '✅ Reader Added', description: `${editingReader.name} has been added.`});
         }
+        // Note: Adding a new user is disabled in the UI, registration flow handles it.
         setIsAddEditOpen(false);
         setEditingReader(null);
 
@@ -152,7 +141,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
     }
     
     try {
-        await deleteDoc(doc(db, 'readers', readerId));
+        await deleteDoc(doc(db, 'users', readerId));
         toast({ title: '✅ Reader Deleted', description: 'The reader has been removed from the system.'});
     } catch(error) {
         toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete reader.'});
@@ -190,78 +179,144 @@ export function ReaderActions({ }: ReaderActionsProps) {
         </div>
 
         <div className="overflow-x-auto">
-            <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Books Out</TableHead>
-                <TableHead>Late Fees</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {filteredReaders.length > 0 ? filteredReaders.map(readerItem => (
-                <TableRow key={readerItem.id}>
-                    <TableCell className="font-medium">{readerItem.name}</TableCell>
-                    <TableCell>{readerItem.email}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getBorrowedBooksCount(readerItem.id)}</Badge>
-                    </TableCell>
-                    <TableCell>
-                        <Badge variant={readerItem.lateFees > 0 ? 'destructive' : 'secondary'}>
-                            {formatCurrency(readerItem.lateFees || 0)}
-                        </Badge>
-                    </TableCell>
-                    <TableCell>
-                        <RoleBadge role={readerItem.role} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                         { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-                           <>
-                            <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Edit Profile</DropdownMenuItem>
-                           </>
-                         )}
-                         { currentUserRole === 'admin' && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={readerItem.booksOut > 0 || readerItem.id === user?.id}>Delete Profile</DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>This will permanently delete {readerItem.name}'s profile. This action cannot be undone.</AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Continue</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                         )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    </TableCell>
-                </TableRow>
-                )) : (
-                <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                    No readers found.
-                    </TableCell>
-                </TableRow>
-                )}
-            </TableBody>
+            <Table className="hidden md:table">
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Books Out</TableHead>
+                    <TableHead>Late Fees</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {filteredReaders.length > 0 ? filteredReaders.map(readerItem => (
+                    <TableRow key={readerItem.id}>
+                        <TableCell className="font-medium">{readerItem.name}</TableCell>
+                        <TableCell>{readerItem.email}</TableCell>
+                        <TableCell>
+                        <Badge variant="outline">{getBorrowedBooksCount(readerItem.id)}</Badge>
+                        </TableCell>
+                        <TableCell>
+                            <Badge variant={readerItem.lateFees > 0 ? 'destructive' : 'secondary'}>
+                                {formatCurrency(readerItem.lateFees || 0)}
+                            </Badge>
+                        </TableCell>
+                        <TableCell>
+                            <RoleBadge role={readerItem.role} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+                            <>
+                                <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Edit Profile</DropdownMenuItem>
+                            </>
+                            )}
+                            { currentUserRole === 'admin' && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={readerItem.booksOut > 0 || readerItem.id === user?.id}>Delete Profile</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete {readerItem.name}'s profile. This action cannot be undone.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Continue</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                    )) : (
+                    <TableRow>
+                        <TableCell colSpan={6} className="h-24 text-center">
+                        No readers found.
+                        </TableCell>
+                    </TableRow>
+                    )}
+                </TableBody>
             </Table>
+
+            {/* Mobile View */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:hidden">
+                {filteredReaders.length > 0 ? filteredReaders.map(readerItem => (
+                    <div key={readerItem.id} className="border rounded-lg p-4 flex flex-col space-y-3">
+                        <div className="flex justify-between items-start">
+                             <div>
+                                <h3 className="font-bold text-lg">{readerItem.name}</h3>
+                                <p className="text-sm text-muted-foreground">{readerItem.email}</p>
+                            </div>
+                           <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0 -mr-2 -mt-2 flex-shrink-0">
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+                                <>
+                                    <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Edit Profile</DropdownMenuItem>
+                                </>
+                                )}
+                                { currentUserRole === 'admin' && (
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={readerItem.booksOut > 0 || readerItem.id === user?.id}>Delete Profile</DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete {readerItem.name}'s profile. This action cannot be undone.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Continue</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Books Out</span>
+                            <Badge variant="outline">{getBorrowedBooksCount(readerItem.id)}</Badge>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Late Fees</span>
+                            <Badge variant={readerItem.lateFees > 0 ? 'destructive' : 'secondary'}>
+                                {formatCurrency(readerItem.lateFees || 0)}
+                            </Badge>
+                        </div>
+                         <div className="flex justify-between text-sm items-center">
+                            <span className="text-muted-foreground">Role</span>
+                            <RoleBadge role={readerItem.role} />
+                        </div>
+                    </div>
+                )) : (
+                     <div className="col-span-1 sm:col-span-2 h-24 text-center flex items-center justify-center text-muted-foreground">
+                        No readers found.
+                    </div>
+                )}
+            </div>
+
         </div>
         
         <Dialog open={isAddEditOpen} onOpenChange={setIsAddEditOpen}>
@@ -287,8 +342,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 <Input id="lateFees" type="number" value={editingReader?.lateFees || 0} onChange={e => setEditingReader({...editingReader, lateFees: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="role" className="text-right">Role</Label>
-                 <Select value={editingReader?.role || 'reader'} onValueChange={(value) => setEditingReader({...editingReader, role: value as Reader['role']})} disabled={currentUserRole !== 'admin'}>
+                <Label htmlFor="role" className="text-right">Role</Label>                 <Select value={editingReader?.role || 'reader'} onValueChange={(value) => setEditingReader({...editingReader, role: value as Reader['role']})} disabled={currentUserRole !== 'admin'}>
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
