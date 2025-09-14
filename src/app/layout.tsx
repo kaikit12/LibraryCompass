@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { AuthProvider } from '@/context/auth-context';
 import { AuthGuard } from '@/components/auth/auth-guard';
+import { AppHeader } from '@/components/layout/app-header';
 
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default function RootLayout({
                 <SidebarProvider>
                     <AppSidebar />
                     <SidebarInset>
+                      <AppHeader />
                       <div className="p-4 sm:p-6 md:p-8">
                         {children}
                       </div>

@@ -4,7 +4,6 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarFooter,
-  SidebarTrigger,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton
@@ -40,7 +39,6 @@ export function AppSidebar() {
                   Library Compass
               </h1>
           </div>
-          <SidebarTrigger />
         </div>
       </SidebarHeader>
       <SidebarContent>
