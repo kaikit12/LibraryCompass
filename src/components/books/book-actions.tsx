@@ -13,11 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, PlusCircle, Search } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, QrCode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { BorrowDialog } from "./borrow-dialog";
+import { QRCodeDialog } from "./qr-code-dialog";
 
 interface BookActionsProps {
 }
@@ -35,6 +36,7 @@ export function BookActions({ }: BookActionsProps) {
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [isBorrowOpen, setIsBorrowOpen] = useState(false);
+  const [isQROpen, setIsQROpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [editingBook, setEditingBook] = useState<Partial<Book> | null>(null);
   
@@ -137,6 +139,11 @@ export function BookActions({ }: BookActionsProps) {
     setIsBorrowOpen(true);
   };
   
+  const handleOpenQR = (book: Book) => {
+    setSelectedBook(book);
+    setIsQROpen(true);
+  }
+
   const handleReturnBookByTitle = async (book: Book) => {
     // Find the reader who borrowed this specific book.
     // This logic assumes a book can only be borrowed by one person at a time,
@@ -240,6 +247,10 @@ export function BookActions({ }: BookActionsProps) {
                       <DropdownMenuItem onClick={() => handleReturnBookByTitle(book)} disabled={book.available === book.quantity}>
                         Return
                       </DropdownMenuItem>
+                       <DropdownMenuItem onClick={() => handleOpenQR(book)}>
+                        <QrCode className="mr-2 h-4 w-4" />
+                        View QR Code
+                      </DropdownMenuItem>
                       { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
                         <>
                           <DropdownMenuSeparator />
@@ -325,6 +336,14 @@ export function BookActions({ }: BookActionsProps) {
                 readers={readers}
                 isOpen={isBorrowOpen}
                 setIsOpen={setIsBorrowOpen}
+            />
+        )}
+
+        {selectedBook && (
+            <QRCodeDialog
+                book={selectedBook}
+                isOpen={isQROpen}
+                setIsOpen={setIsQROpen}
             />
         )}
       </CardContent>
