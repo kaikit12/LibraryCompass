@@ -236,6 +236,9 @@ export function ReaderActions({ }: ReaderActionsProps) {
                            <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleOpenEdit(reader)}>Edit Profile</DropdownMenuItem>
+                           </>
+                         )}
+                         { currentUserRole === 'admin' && (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={reader.booksOut > 0 || reader.id === user?.id}>Delete Profile</DropdownMenuItem>
@@ -251,7 +254,6 @@ export function ReaderActions({ }: ReaderActionsProps) {
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                           </>
                          )}
                         </DropdownMenuContent>
                     </DropdownMenu>

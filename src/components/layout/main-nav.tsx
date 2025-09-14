@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { useAuth } from '@/context/auth-context'
 
 const links = [
-  { href: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'librarian', 'reader'] },
+  { href: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'librarian'] },
   { href: '/books', label: 'Books', icon: Book, roles: ['admin', 'librarian', 'reader'] },
   { href: '/readers', label: 'Readers', icon: Users, roles: ['admin', 'librarian'] },
 ]

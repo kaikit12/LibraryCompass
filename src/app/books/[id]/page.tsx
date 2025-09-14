@@ -13,14 +13,14 @@ import { BookCopy, CheckCircle, XCircle, ArrowLeft, Users } from "lucide-react";
 import Link from "next/link";
 import { BorrowDialog } from "@/components/books/borrow-dialog";
 import { useToast } from "@/hooks/use-toast";
-
-// NOTE: In a real app, you'd get this from your auth context
-const currentUserRole: Reader['role'] = 'admin';
+import { useAuth } from "@/context/auth-context";
 
 export default function BookDetailPage() {
   const params = useParams();
   const bookId = params.id as string;
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+
 
   const [book, setBook] = useState<Book | null>(null);
   const [readers, setReaders] = useState<Reader[]>([]);
@@ -112,6 +112,7 @@ export default function BookDetailPage() {
 
   const isBorrowable = book.status === 'Available' && book.available > 0;
   const isReturnable = book.available < book.quantity;
+  const currentUserRole = currentUser?.role;
 
   return (
     <div className="max-w-2xl mx-auto">
