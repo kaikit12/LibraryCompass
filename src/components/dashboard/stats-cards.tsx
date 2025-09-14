@@ -54,19 +54,19 @@ export default function StatsCards({ }: StatsCardsProps) {
         const borrowalsColRef = collection(db, "borrowals");
 
         // Overdue
-        const overdueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", Timestamp.fromDate(today)));
+        const overdueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", today));
         const unsubscribeOverdue = onSnapshot(overdueQuery, snapshot => setOverdueCount(snapshot.size));
 
         // Borrowed Today
-        const borrowedQuery = query(borrowalsColRef, where("borrowedAt", ">=", Timestamp.fromDate(startOfToday)), where("borrowedAt", "<=", Timestamp.fromDate(endOfToday)));
+        const borrowedQuery = query(borrowalsColRef, where("borrowedAt", ">=", startOfToday), where("borrowedAt", "<=", endOfToday));
         const unsubscribeBorrowed = onSnapshot(borrowedQuery, snapshot => setBorrowedToday(snapshot.size));
 
         // Due Today
-        const dueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", ">=", Timestamp.fromDate(startOfToday)), where("dueDate", "<=", Timestamp.fromDate(endOfToday)));
+        const dueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", ">=", startOfToday), where("dueDate", "<=", endOfToday));
         const unsubscribeDue = onSnapshot(dueQuery, snapshot => setDueToday(snapshot.size));
 
         // Returned Today
-        const returnedQuery = query(borrowalsColRef, where("returnedAt", ">=", Timestamp.fromDate(startOfToday)), where("returnedAt", "<=", Timestamp.fromDate(endOfToday)));
+        const returnedQuery = query(borrowalsColRef, where("returnedAt", ">=", startOfToday), where("returnedAt", "<=", endOfToday));
         const unsubscribeReturned = onSnapshot(returnedQuery, snapshot => setReturnedToday(snapshot.size));
 
         return [unsubscribeOverdue, unsubscribeBorrowed, unsubscribeDue, unsubscribeReturned];

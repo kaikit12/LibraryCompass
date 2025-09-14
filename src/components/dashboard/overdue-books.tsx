@@ -25,7 +25,7 @@ export default function OverdueBooks() {
   useEffect(() => {
     const today = new Date();
     const borrowalsColRef = collection(db, "borrowals");
-    const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", Timestamp.fromDate(today)));
+    const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", today));
 
     const unsubscribe = onSnapshot(q, async (overdueSnapshot) => {
         const booksSnapshot = await getDocs(collection(db, "books"));
