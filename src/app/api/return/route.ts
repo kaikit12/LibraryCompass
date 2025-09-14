@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, increment, arrayRemove, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, runTransaction, increment, arrayRemove, collection, query, where, getDocs } from 'firebase/firestore';
 import { differenceInDays } from 'date-fns';
+import { createNotification } from '@/lib/notifications';
 
 const LATE_FEE_PER_DAY = 1.00; // $1 per day
 
@@ -28,21 +29,28 @@ export async function POST(request: Request) {
 
     let lateFee = 0;
     let daysLate = 0;
-    
+    let bookTitle = '';
+
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
         const userRef = doc(db, 'users', userId);
 
+        // Read documents inside the transaction
+        const bookDoc = await transaction.get(bookRef);
         const userDoc = await transaction.get(userRef);
         const currentBorrowalDoc = await transaction.get(borrowalDocRef); 
 
+        if (!bookDoc.exists()) {
+          throw new Error("Book not found during transaction.");
+        }
         if (!userDoc.exists()) {
-          throw new Error("Reader not found.");
+          throw new Error("Reader not found during transaction.");
         }
         if (!currentBorrowalDoc.exists()){
             throw new Error("Borrowal record disappeared during transaction.");
         }
-
+        
+        bookTitle = bookDoc.data().title;
         const borrowalData = currentBorrowalDoc.data();
         const dueDate = borrowalData.dueDate.toDate();
         const returnDate = new Date();
@@ -52,6 +60,7 @@ export async function POST(request: Request) {
           lateFee = daysLate * LATE_FEE_PER_DAY;
         }
 
+        // Perform writes
         transaction.update(bookRef, {
             available: increment(1),
             status: 'Available'
@@ -73,9 +82,17 @@ export async function POST(request: Request) {
     });
 
     let message = 'Book returned successfully.';
+    let notifMessage = `You have successfully returned "${bookTitle}".`;
+    let notifType: 'success' | 'warning' = 'success';
+
     if (lateFee > 0) {
-        message += ` A late fee of $${lateFee.toFixed(2)} for ${daysLate} day(s) has been added to the reader's account.`
+        message += ` A late fee of $${lateFee.toFixed(2)} for ${daysLate} day(s) has been added to the reader's account.`;
+        notifMessage = `"${bookTitle}" was returned ${daysLate} day(s) late. A fee of $${lateFee.toFixed(2)} has been charged.`;
+        notifType = 'warning';
     }
+
+    // Send notification
+    await createNotification(userId, { message: notifMessage, type: notifType });
 
     return NextResponse.json({ success: true, message });
   } catch (error: any) {

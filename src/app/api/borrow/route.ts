@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, increment, arrayUnion, collection, addDoc } from 'firebase/firestore';
+import { doc, runTransaction, increment, arrayUnion, collection } from 'firebase/firestore';
+import { createNotification } from '@/lib/notifications';
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +10,8 @@ export async function POST(request: Request) {
     if (!bookId || !userId || !dueDate) {
       return NextResponse.json({ success: false, message: 'Book ID, User ID, and Due Date are required.' }, { status: 400 });
     }
+
+    let bookTitle = '';
 
     await runTransaction(db, async (transaction) => {
       const bookRef = doc(db, 'books', bookId);
@@ -25,6 +28,7 @@ export async function POST(request: Request) {
       }
       
       const bookData = bookDoc.data();
+      bookTitle = bookData.title; // Capture book title for notification
       
       if (bookData.available <= 0) {
         throw new Error('No copies of this book are available.');
@@ -40,9 +44,6 @@ export async function POST(request: Request) {
         transaction.update(bookRef, { status: 'Borrowed' });
       }
       
-      // Add a record to the root 'borrowals' collection
-      // This is done outside the transaction in the final implementation step.
-      // For now, we keep writes inside. A separate step can create a Cloud Function for this.
       const newBorrowalRef = doc(collection(db, "borrowals"));
       transaction.set(newBorrowalRef, {
         bookId: bookId,
@@ -50,15 +51,20 @@ export async function POST(request: Request) {
         borrowedAt: new Date(),
         dueDate: new Date(dueDate),
         status: 'borrowed',
-        isOverdue: false
+        isOverdue: false,
       });
-
 
       // Update user
       transaction.update(userRef, {
         booksOut: increment(1),
         borrowedBooks: arrayUnion(bookId)
       });
+    });
+
+    // Create notification after successful transaction
+    await createNotification(userId, {
+      message: `You have successfully borrowed "${bookTitle}". It is due on ${new Date(dueDate).toLocaleDateString()}.`,
+      type: 'success',
     });
 
     return NextResponse.json({ success: true, message: 'Book borrowed successfully.' });

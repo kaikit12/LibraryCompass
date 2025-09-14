@@ -22,3 +22,12 @@ export interface Reader {
   borrowingHistory: string[]; // array of book titles, dynamically added
   role: 'admin' | 'librarian' | 'reader';
 }
+
+
+export interface Notification {
+    id: string;
+    message: string;
+    type: 'success' | 'warning' | 'info' | 'error';
+    createdAt: any; // Firestore Timestamp
+    isRead: boolean;
+}
