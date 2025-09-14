@@ -12,7 +12,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, PlusCircle, Search, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { RecommendationsDialog } from "./recommendations-dialog";
 import { Badge } from "../ui/badge";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
@@ -49,25 +48,22 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingReader, setEditingReader] = useState<Partial<Reader> | null>(null);
-  const [isRecoDialogOpen, setIsRecoDialogOpen] = useState(false);
-  const [selectedReaderForReco, setSelectedReaderForReco] = useState<Reader | null>(null);
 
   useEffect(() => {
-    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
+    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as Reader));
       setReaders(liveReaders);
     });
       
-    return () => unsubscribeReaders();
-  }, []);
-
-  useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
         const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
         setBooks(liveBooks);
     });
       
-    return () => unsubscribeBooks();
+    return () => {
+        unsubscribeReaders();
+        unsubscribeBooks();
+    };
   }, []);
 
   const enrichedReaders = useMemo(() => {
@@ -78,8 +74,6 @@ export function ReaderActions({ }: ReaderActionsProps) {
     return readers.map(reader => {
         const borrowedBookTitles = (reader.borrowedBooks || [])
             .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
-            // This is a simple way to simulate a broader history.
-            // In a real app, you'd store historical borrows in a separate collection.
             .concat(reader.borrowingHistory || []); 
             
         const uniqueTitles = [...new Set(borrowedBookTitles)];
@@ -120,7 +114,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
     try {
         if (editingReader.id) {
-            const readerRef = doc(db, 'users', editingReader.id);
+            const readerRef = doc(db, 'readers', editingReader.id);
             await updateDoc(readerRef, {
                 name: editingReader.name,
                 email: editingReader.email,
@@ -131,7 +125,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
             toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
         } else {
             // This path is less likely with auth in place, but kept for completeness
-            await addDoc(collection(db, 'users'), {
+            await addDoc(collection(db, 'readers'), {
                 name: editingReader.name,
                 email: editingReader.email,
                 phone: editingReader.phone || '',
@@ -158,23 +152,13 @@ export function ReaderActions({ }: ReaderActionsProps) {
     }
     
     try {
-        await deleteDoc(doc(db, 'users', readerId));
+        await deleteDoc(doc(db, 'readers', readerId));
         toast({ title: '✅ Reader Deleted', description: 'The reader has been removed from the system.'});
     } catch(error) {
         toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete reader.'});
     }
   };
 
-  const handleOpenRecoDialog = (reader: Reader) => {
-    // Find the fully enriched reader object from our memoized list
-    const enrichedReader = enrichedReaders.find(r => r.id === reader.id);
-    if (enrichedReader) {
-        setSelectedReaderForReco(enrichedReader);
-        setIsRecoDialogOpen(true);
-    } else {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not find reader data.' });
-    }
-  }
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -243,13 +227,8 @@ export function ReaderActions({ }: ReaderActionsProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleOpenRecoDialog(readerItem)}>
-                            <Sparkles className="mr-2 h-4 w-4 text-accent-foreground/80"/>
-                            Get Recommendations
-                        </DropdownMenuItem>
                          { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
                            <>
-                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Edit Profile</DropdownMenuItem>
                            </>
                          )}
@@ -328,13 +307,6 @@ export function ReaderActions({ }: ReaderActionsProps) {
           </DialogContent>
         </Dialog>
         
-        {selectedReaderForReco && (
-            <RecommendationsDialog 
-                reader={selectedReaderForReco} 
-                isOpen={isRecoDialogOpen} 
-                setIsOpen={setIsRecoDialogOpen} 
-            />
-        )}
       </CardContent>
     </Card>
   );

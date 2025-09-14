@@ -13,13 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, PlusCircle, Search, QrCode } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { BorrowDialog } from "./borrow-dialog";
 import { QRCodeDialog } from "./qr-code-dialog";
 import { useAuth } from "@/context/auth-context";
+import { PersonalizedRecommendationsDialog } from "./recommendations-dialog";
 
 interface BookActionsProps {
 }
@@ -38,11 +39,12 @@ export function BookActions({ }: BookActionsProps) {
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [isBorrowOpen, setIsBorrowOpen] = useState(false);
   const [isQROpen, setIsQROpen] = useState(false);
+  const [isRecoDialogOpen, setIsRecoDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [editingBook, setEditingBook] = useState<Partial<Book> | null>(null);
   
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "books"), (snapshot) => {
+    const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
       const liveBooks = snapshot.docs.map(doc => {
           const data = doc.data();
           return { 
@@ -52,16 +54,37 @@ export function BookActions({ }: BookActionsProps) {
       });
       setBooks(liveBooks);
     });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+    
+    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
       setReaders(liveReaders);
     });
-    return () => unsubscribe();
+
+    return () => {
+        unsubscribeBooks();
+        unsubscribeReaders();
+    };
   }, []);
+
+  const enrichedReaders = useMemo(() => {
+    if (!readers.length || !books.length) return [];
+    
+    const bookTitleMap = new Map(books.map(book => [book.id, book.title]));
+
+    return readers.map(reader => {
+        const borrowedBookTitles = (reader.borrowedBooks || [])
+            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
+            .concat(reader.borrowingHistory || []); 
+            
+        const uniqueTitles = [...new Set(borrowedBookTitles)];
+
+        return {
+            ...reader,
+            borrowingHistory: uniqueTitles,
+        }
+    });
+  }, [readers, books]);
+
 
   const filteredBooks = useMemo(() => {
     return books.filter(book => {
@@ -177,7 +200,7 @@ export function BookActions({ }: BookActionsProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search by title or author..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Filter by status" />
@@ -198,9 +221,14 @@ export function BookActions({ }: BookActionsProps) {
               </SelectContent>
             </Select>
             { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-              <Button onClick={handleOpenAdd}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Book
-              </Button>
+              <>
+                <Button onClick={() => setIsRecoDialogOpen(true)} variant="outline">
+                    <Sparkles className="mr-2 h-4 w-4" /> AI Recommendations
+                </Button>
+                <Button onClick={handleOpenAdd}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Book
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -346,6 +374,13 @@ export function BookActions({ }: BookActionsProps) {
                 setIsOpen={setIsQROpen}
             />
         )}
+
+        <PersonalizedRecommendationsDialog
+            readers={enrichedReaders}
+            isOpen={isRecoDialogOpen}
+            setIsOpen={setIsRecoDialogOpen}
+        />
+
       </CardContent>
     </Card>
   );
