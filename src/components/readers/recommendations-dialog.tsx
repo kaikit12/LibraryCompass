@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Reader } from "@/lib/types";
+import type { User } from "@/lib/types";
 import { getPersonalizedBookRecommendations } from "@/ai/flows/personalized-book-recommendations";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -13,18 +13,18 @@ import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 
 interface RecommendationsDialogProps {
-    reader: Reader;
+    user: User;
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => void;
 }
 
-export function RecommendationsDialog({ reader, isOpen, setIsOpen }: RecommendationsDialogProps) {
+export function RecommendationsDialog({ user, isOpen, setIsOpen }: RecommendationsDialogProps) {
     const [preferences, setPreferences] = useState('');
     const [recommendations, setRecommendations] = useState<string[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
-    // Reset state when a new reader is selected or dialog is opened
+    // Reset state when a new user is selected or dialog is opened
     useEffect(() => {
         if (isOpen) {
             setPreferences('');
@@ -39,8 +39,8 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
         setRecommendations(null);
         try {
             const result = await getPersonalizedBookRecommendations({
-                readerId: reader.id,
-                borrowingHistory: reader.borrowingHistory || [],
+                readerId: user.id,
+                borrowingHistory: user.borrowingHistory || [],
                 preferences: preferences,
             });
             setRecommendations(result.recommendations);
@@ -61,7 +61,7 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 font-headline text-2xl">
                         <Sparkles className="w-6 h-6 text-accent-foreground" />
-                        Book Recommendations for {reader.name}
+                        Book Recommendations for {user.name}
                     </DialogTitle>
                     <DialogDescription>
                         AI-powered suggestions based on borrowing history and preferences.
@@ -74,14 +74,14 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
                             <CardContent className="pt-6">
                                 <h3 className="font-semibold mb-2">Borrowing History</h3>
                                 <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                                {(reader.borrowingHistory && reader.borrowingHistory.length > 0) ? reader.borrowingHistory.map(title => (
+                                {(user.borrowingHistory && user.borrowingHistory.length > 0) ? user.borrowingHistory.map(title => (
                                     <Badge key={title} variant="secondary">{title}</Badge>
                                 )) : <p className="text-sm text-muted-foreground">No borrowing history.</p>}
                                 </div>
                             </CardContent>
                         </Card>
                          <div className="space-y-2">
-                            <Label htmlFor="preferences">Reader's Preferences (Optional)</Label>
+                            <Label htmlFor="preferences">User's Preferences (Optional)</Label>
                             <Textarea 
                                 id="preferences" 
                                 placeholder="e.g., enjoys fast-paced thrillers, historical fiction, or books about space exploration..."

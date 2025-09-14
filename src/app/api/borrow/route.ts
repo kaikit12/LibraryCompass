@@ -4,24 +4,24 @@ import { doc, runTransaction, increment, arrayUnion, collection } from 'firebase
 
 export async function POST(request: Request) {
   try {
-    const { bookId, readerId, dueDate } = await request.json();
+    const { bookId, userId, dueDate } = await request.json();
 
-    if (!bookId || !readerId || !dueDate) {
-      return NextResponse.json({ success: false, message: 'Book ID, Reader ID, and Due Date are required.' }, { status: 400 });
+    if (!bookId || !userId || !dueDate) {
+      return NextResponse.json({ success: false, message: 'Book ID, User ID, and Due Date are required.' }, { status: 400 });
     }
 
     await runTransaction(db, async (transaction) => {
       const bookRef = doc(db, 'books', bookId);
-      const readerRef = doc(db, 'readers', readerId);
+      const userRef = doc(db, 'users', userId);
 
       const bookDoc = await transaction.get(bookRef);
-      const readerDoc = await transaction.get(readerRef);
+      const userDoc = await transaction.get(userRef);
 
       if (!bookDoc.exists()) {
         throw new Error('Book not found.');
       }
-      if (!readerDoc.exists()) {
-        throw new Error('Reader not found.');
+      if (!userDoc.exists()) {
+        throw new Error('User not found.');
       }
       
       const bookData = bookDoc.data();
@@ -43,15 +43,15 @@ export async function POST(request: Request) {
       // Add a record to a subcollection for this specific borrow instance
       const borrowLogRef = doc(collection(db, 'books', bookId, 'borrowals'));
       transaction.set(borrowLogRef, {
-        readerId: readerId,
+        userId: userId,
         borrowedAt: new Date(),
         dueDate: new Date(dueDate),
         status: 'borrowed'
       });
 
 
-      // Update reader
-      transaction.update(readerRef, {
+      // Update user
+      transaction.update(userRef, {
         booksOut: increment(1),
         borrowedBooks: arrayUnion(bookId)
       });

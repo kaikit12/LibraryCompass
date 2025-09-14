@@ -4,13 +4,13 @@ export interface Book {
   author: string;
   genre: string;
   status: 'Available' | 'Borrowed';
-  borrowedBy?: string; // readerId
+  borrowedBy?: string; // userId
   dueDate?: string; // ISO string
   quantity: number;
   available: number;
 }
 
-export interface Reader {
+export interface User {
   id: string; // This will be the firebase uid
   uid: string;
   name: string;

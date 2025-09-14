@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { Book, Reader } from '@/lib/types';
+import { Book, User } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestor
 
 interface OverdueEntry {
   bookTitle: string;
-  readerName: string;
+  userName: string;
   dueDate: string;
   daysOverdue: number;
 }
@@ -27,8 +27,8 @@ export default function OverdueBooks() {
       const booksSnapshot = await getDocs(collection(db, "books"));
       const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
 
-      const readersSnapshot = await getDocs(collection(db, "readers"));
-      const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      const usersMap = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data() as User]));
       
       const today = new Date();
       const newOverdueEntries: OverdueEntry[] = [];
@@ -40,13 +40,13 @@ export default function OverdueBooks() {
 
         overdueSnapshot.forEach(doc => {
           const borrowalData = doc.data();
-          const reader = readersMap.get(borrowalData.readerId);
-          if (reader) {
+          const user = usersMap.get(borrowalData.userId);
+          if (user) {
             const dueDate = borrowalData.dueDate.toDate();
             const daysOverdue = differenceInDays(today, dueDate);
             newOverdueEntries.push({
               bookTitle: book.title,
-              readerName: reader.name,
+              userName: user.name,
               dueDate: format(dueDate, 'PPP'),
               daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
             });
@@ -65,15 +65,15 @@ export default function OverdueBooks() {
     }
   }, []);
   
-  const handleNotify = (bookTitle: string, readerName: string) => {
+  const handleNotify = (bookTitle: string, userName: string) => {
     const showNotification = () => {
       new Notification('Overdue Book Reminder', {
-        body: `Hi ${readerName}, the book "${bookTitle}" is overdue. Please return it soon.`,
+        body: `Hi ${userName}, the book "${bookTitle}" is overdue. Please return it soon.`,
         icon: '/favicon.ico' // Optional: you can add an icon
       });
       toast({
         title: '✅ Notification Sent',
-        description: `A reminder for "${bookTitle}" has been sent to ${readerName}.`,
+        description: `A reminder for "${bookTitle}" has been sent to ${userName}.`,
       });
     };
 
@@ -120,13 +120,13 @@ export default function OverdueBooks() {
                 {overdueEntries.map((entry, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{entry.bookTitle}</TableCell>
-                    <TableCell>{entry.readerName}</TableCell>
+                    <TableCell>{entry.userName}</TableCell>
                     <TableCell>{entry.dueDate}</TableCell>
                     <TableCell>
                       <Badge variant="destructive">{entry.daysOverdue} days</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleNotify(entry.bookTitle, entry.readerName)}>
+                      <Button variant="outline" size="sm" onClick={() => handleNotify(entry.bookTitle, entry.userName)}>
                         <Bell className="mr-2 h-4 w-4" />
                         Notify
                       </Button>

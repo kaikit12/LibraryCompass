@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Book, Reader } from "@/lib/types";
+import { Book, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,31 +26,31 @@ import { useAuth } from "@/context/auth-context";
 
 interface BorrowDialogProps {
   book: Book | null;
-  readers: Reader[];
+  users: User[];
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
 
 export function BorrowDialog({
   book,
-  readers,
+  users,
   isOpen,
   setIsOpen,
 }: BorrowDialogProps) {
   const { user } = useAuth();
-  const [selectedReaderId, setSelectedReaderId] = useState<string>("");
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen && user?.role === 'reader' && user?.id) {
-        setSelectedReaderId(user.id);
+        setSelectedUserId(user.id);
     }
   }, [user, isOpen]);
 
   const handleConfirmBorrow = async () => {
-    if (!book || !selectedReaderId || !dueDate) {
-        toast({ variant: 'destructive', title: '❌ Error', description: 'Please select a reader and a due date.'});
+    if (!book || !selectedUserId || !dueDate) {
+        toast({ variant: 'destructive', title: '❌ Error', description: 'Please select a user and a due date.'});
         return;
     }
 
@@ -60,7 +60,7 @@ export function BorrowDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookId: book.id,
-          readerId: selectedReaderId,
+          userId: selectedUserId,
           dueDate: formatISO(new Date(dueDate)),
         }),
       });
@@ -87,7 +87,7 @@ export function BorrowDialog({
   const handleClose = () => {
     setIsOpen(false);
     if(user?.role !== 'reader') {
-        setSelectedReaderId("");
+        setSelectedUserId("");
     }
     setDueDate("");
   };
@@ -98,19 +98,19 @@ export function BorrowDialog({
         <DialogHeader>
           <DialogTitle>Borrow Book: {book?.title}</DialogTitle>
           <DialogDescription>
-            Select a reader and a return date to borrow this book.
+            Select a user and a return date to borrow this book.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
          { (user?.role === 'admin' || user?.role === 'librarian') && (
             <div className="space-y-2">
-                <Label htmlFor="reader">Reader</Label>
-                <Select onValueChange={setSelectedReaderId} value={selectedReaderId}>
-                <SelectTrigger id="reader">
-                    <SelectValue placeholder="Select a reader" />
+                <Label htmlFor="user">User</Label>
+                <Select onValueChange={setSelectedUserId} value={selectedUserId}>
+                <SelectTrigger id="user">
+                    <SelectValue placeholder="Select a user" />
                 </SelectTrigger>
                 <SelectContent>
-                    {readers.map((r) => (
+                    {users.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                         {r.name}
                     </SelectItem>
@@ -137,7 +137,7 @@ export function BorrowDialog({
           </DialogClose>
           <Button
             onClick={handleConfirmBorrow}
-            disabled={!selectedReaderId || !dueDate}
+            disabled={!selectedUserId || !dueDate}
           >
             Confirm Borrow
           </Button>

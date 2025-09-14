@@ -7,10 +7,10 @@ const LATE_FEE_PER_DAY = 1.00; // $1 per day
 
 export async function POST(request: Request) {
   try {
-    const { bookId, readerId } = await request.json();
+    const { bookId, userId } = await request.json();
 
-    if (!bookId || !readerId) {
-      return NextResponse.json({ success: false, message: 'Book ID and Reader ID are required.' }, { status: 400 });
+    if (!bookId || !userId) {
+      return NextResponse.json({ success: false, message: 'Book ID and User ID are required.' }, { status: 400 });
     }
 
     let lateFee = 0;
@@ -18,23 +18,23 @@ export async function POST(request: Request) {
 
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
-        const readerRef = doc(db, 'readers', readerId);
+        const userRef = doc(db, 'users', userId);
 
-        // This transaction needs the reader doc for updates later
-        const readerDoc = await transaction.get(readerRef);
-        if (!readerDoc.exists()) {
-          throw new Error("Reader not found.");
+        // This transaction needs the user doc for updates later
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists()) {
+          throw new Error("User not found.");
         }
 
         // Get the specific borrowal record
         const borrowalsRef = collection(db, 'books', bookId, 'borrowals');
-        const q = query(borrowalsRef, where("readerId", "==", readerId), where("status", "==", "borrowed"));
+        const q = query(borrowalsRef, where("userId", "==", userId), where("status", "==", "borrowed"));
         
         // This get() must be inside the transaction to be atomic
         const borrowalSnapshot = await getDocs(q);
 
         if (borrowalSnapshot.empty) {
-             throw new Error('Return not found. No active borrowal record for this reader and book.');
+             throw new Error('Return not found. No active borrowal record for this user and book.');
         }
 
         const borrowalDoc = borrowalSnapshot.docs[0];
@@ -53,15 +53,15 @@ export async function POST(request: Request) {
             status: 'Available' // Set status to available since at least one is returned
         });
 
-        // Update reader: decrement booksOut and remove bookId
-        const readerUpdate: { [key: string]: any } = {
+        // Update user: decrement booksOut and remove bookId
+        const userUpdate: { [key: string]: any } = {
             booksOut: increment(-1),
             borrowedBooks: arrayRemove(bookId),
         };
         if (lateFee > 0) {
-            readerUpdate.lateFees = increment(lateFee);
+            userUpdate.lateFees = increment(lateFee);
         }
-        transaction.update(readerRef, readerUpdate);
+        transaction.update(userRef, userUpdate);
 
         // Update the specific borrowal record to 'returned'
         transaction.update(borrowalDoc.ref, {
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
     let message = 'Book returned successfully.';
     if (lateFee > 0) {
-        message += ` A late fee of $${lateFee.toFixed(2)} for ${daysLate} day(s) has been added to the reader's account.`
+        message += ` A late fee of $${lateFee.toFixed(2)} for ${daysLate} day(s) has been added to the user's account.`
     }
 
     return NextResponse.json({ success: true, message });

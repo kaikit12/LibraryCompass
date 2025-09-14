@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Book, Reader } from '@/lib/types';
+import { Book, User } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookCopy, Users, Library, AlertTriangle, DollarSign, BookUp, BookDown, CalendarClock } from 'lucide-react';
 import { db } from '@/lib/firebase';
@@ -14,7 +14,7 @@ interface StatsCardsProps {
 export default function StatsCards({ }: StatsCardsProps) {
   const [totalBookCopies, setTotalBookCopies] = useState(0);
   const [borrowedBooksCount, setBorrowedBooksCount] = useState(0);
-  const [totalReaders, setTotalReaders] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
   const [lateFeeRevenue, setLateFeeRevenue] = useState(0);
   const [borrowedToday, setBorrowedToday] = useState(0);
@@ -34,13 +34,13 @@ export default function StatsCards({ }: StatsCardsProps) {
        setBorrowedBooksCount(borrowed);
     });
 
-    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+    const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       let fees = 0;
       snapshot.forEach(doc => {
-        const reader = doc.data() as Reader;
-        fees += reader.lateFees || 0;
+        const user = doc.data() as User;
+        fees += user.lateFees || 0;
       });
-      setTotalReaders(snapshot.size);
+      setTotalUsers(snapshot.size);
       setLateFeeRevenue(fees);
     });
 
@@ -88,7 +88,7 @@ export default function StatsCards({ }: StatsCardsProps) {
 
     return () => {
         unsubscribeBooks();
-        unsubscribeReaders();
+        unsubscribeUsers();
         clearInterval(interval);
     };
   }, []);
@@ -102,7 +102,7 @@ export default function StatsCards({ }: StatsCardsProps) {
   const stats = [
     { title: 'Total Book Copies', value: totalBookCopies, icon: Library },
     { title: 'Books Borrowed', value: borrowedBooksCount, icon: BookCopy, progress: borrowedPercentage, description: `${borrowedPercentage.toFixed(0)}% of all books` },
-    { title: 'Total Readers', value: totalReaders, icon: Users },
+    { title: 'Total Users', value: totalUsers, icon: Users },
     { title: 'Overdue Books', value: overdueCount, icon: AlertTriangle },
     { title: 'Late Fee Revenue', value: formatCurrency(lateFeeRevenue), icon: DollarSign }
   ];

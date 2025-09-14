@@ -13,15 +13,13 @@ import { useAuth } from '@/context/auth-context'
 const links = [
   { href: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'librarian'] },
   { href: '/books', label: 'Books', icon: Book, roles: ['admin', 'librarian', 'reader'] },
-  { href: '/readers', label: 'Readers', icon: Users, roles: ['admin', 'librarian'] },
+  { href: '/users', label: 'Users', icon: Users, roles: ['admin', 'librarian'] },
 ]
 
 export function MainNav() {
   const pathname = usePathname()
   const { user } = useAuth();
 
-  // Filter links based on the current user's role.
-  // The check for `user?.role` is important to prevent errors when the user object is still loading.
   const availableLinks = user?.role
     ? links.filter(link => link.roles.includes(user.role))
     : [];
