@@ -195,7 +195,7 @@ export function BookActions({ }: BookActionsProps) {
   return (
     <Card>
       <CardContent className="pt-6">
-        <div className="flex flex-col sm:flex-row gap-4 justify-between mb-4">
+        <div className="flex flex-col sm:flex-row gap-4 justify-between mb-4 flex-wrap">
             <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
                 <div className="relative sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -222,16 +222,16 @@ export function BookActions({ }: BookActionsProps) {
                 </Select>
             </div>
           
-            { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-                <div className="flex gap-2">
-                    <Button onClick={() => setIsRecoDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
-                        <Sparkles className="mr-2 h-4 w-4" /> AI Recommendations
-                    </Button>
+            <div className="flex gap-2">
+                 <Button onClick={() => setIsRecoDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
+                    <Sparkles className="mr-2 h-4 w-4" /> AI Recommendations
+                </Button>
+                { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
                     <Button onClick={handleOpenAdd} className="w-full sm:w-auto">
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Book
                     </Button>
-                </div>
-            )}
+                )}
+            </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -386,5 +386,3 @@ export function BookActions({ }: BookActionsProps) {
     </Card>
   );
 }
-
-    

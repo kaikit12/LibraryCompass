@@ -12,6 +12,7 @@ import { Loader2, Sparkles, Wand2 } from "lucide-react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { useAuth } from "@/context/auth-context";
 
 interface PersonalizedRecommendationsDialogProps {
     readers: Reader[];
@@ -20,23 +21,37 @@ interface PersonalizedRecommendationsDialogProps {
 }
 
 export function PersonalizedRecommendationsDialog({ readers, isOpen, setIsOpen }: PersonalizedRecommendationsDialogProps) {
+    const { user: currentUser } = useAuth();
     const [selectedReaderId, setSelectedReaderId] = useState<string | null>(null);
     const [preferences, setPreferences] = useState('');
     const [recommendations, setRecommendations] = useState<string[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
+    // If current user is a reader, they can only get recommendations for themselves.
+    const readerList = currentUser?.role === 'reader' 
+        ? readers.filter(r => r.id === currentUser.id) 
+        : readers;
+
     const selectedReader = readers.find(r => r.id === selectedReaderId);
+
+    useEffect(() => {
+        if (isOpen && currentUser?.role === 'reader') {
+            setSelectedReaderId(currentUser.id);
+        }
+    }, [isOpen, currentUser]);
 
     // Reset state when dialog is opened/closed or readers list changes
     useEffect(() => {
         if (!isOpen) {
-            setSelectedReaderId(null);
+            if (currentUser?.role !== 'reader') {
+                setSelectedReaderId(null);
+            }
             setPreferences('');
             setRecommendations(null);
             setIsLoading(false);
         }
-    }, [isOpen]);
+    }, [isOpen, currentUser]);
 
     const handleGenerate = async () => {
         if (!selectedReader) {
@@ -79,12 +94,12 @@ export function PersonalizedRecommendationsDialog({ readers, isOpen, setIsOpen }
 
                 <div className="py-4">
                      <Label htmlFor="reader-select">Select a Reader</Label>
-                    <Select onValueChange={setSelectedReaderId} value={selectedReaderId || ''}>
+                    <Select onValueChange={setSelectedReaderId} value={selectedReaderId || ''} disabled={currentUser?.role === 'reader'}>
                         <SelectTrigger id="reader-select">
                             <SelectValue placeholder="Choose a reader..." />
                         </SelectTrigger>
                         <SelectContent>
-                            {readers.map((r) => (
+                            {readerList.map((r) => (
                                 <SelectItem key={r.id} value={r.id}>
                                     {r.name}
                                 </SelectItem>
@@ -115,7 +130,7 @@ export function PersonalizedRecommendationsDialog({ readers, isOpen, setIsOpen }
                                     onChange={(e) => setPreferences(e.target.value)}
                                 />
                             </div>
-                            <Button onClick={handleGenerate} disabled={isLoading} className="w-full">
+                            <Button onClick={handleGenerate} disabled={isLoading || !selectedReaderId} className="w-full">
                                 {isLoading ? (
                                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please wait...</>
                                 ) : (
