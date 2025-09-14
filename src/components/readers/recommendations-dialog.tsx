@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react";
 import type { Reader } from "@/lib/types";
 import { getPersonalizedBookRecommendations } from "@/ai/flows/personalized-book-recommendations";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, Wand2 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardTitle } from "../ui/card";
+import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 
 interface RecommendationsDialogProps {
@@ -24,14 +24,14 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
-    // Reset state when a new reader is selected
+    // Reset state when a new reader is selected or dialog is opened
     useEffect(() => {
         if (isOpen) {
             setPreferences('');
             setRecommendations(null);
             setIsLoading(false);
         }
-    }, [isOpen, reader]);
+    }, [isOpen]);
 
 
     const handleGenerate = async () => {
@@ -54,13 +54,9 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
         }
         setIsLoading(false);
     };
-
-    const handleOpenChange = (open: boolean) => {
-        setIsOpen(open);
-    }
     
     return (
-        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogContent className="sm:max-w-[625px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 font-headline text-2xl">
@@ -77,8 +73,8 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
                         <Card>
                             <CardContent className="pt-6">
                                 <h3 className="font-semibold mb-2">Borrowing History</h3>
-                                <div className="flex flex-wrap gap-2">
-                                {(reader.borrowingHistory || []).length > 0 ? reader.borrowingHistory.map(title => (
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                                {(reader.borrowingHistory && reader.borrowingHistory.length > 0) ? reader.borrowingHistory.map(title => (
                                     <Badge key={title} variant="secondary">{title}</Badge>
                                 )) : <p className="text-sm text-muted-foreground">No borrowing history.</p>}
                                 </div>
@@ -104,7 +100,7 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
 
                     <div className="space-y-4">
                         <h3 className="font-semibold text-center md:text-left">Recommendations</h3>
-                        <Card className="min-h-[200px] flex items-center justify-center">
+                        <Card className="min-h-[260px] flex items-center justify-center">
                             <CardContent className="pt-6 w-full">
                                 {isLoading ? (
                                     <div className="text-center text-muted-foreground">
@@ -128,4 +124,4 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
         </Dialog>
     );
 
-    
+}
