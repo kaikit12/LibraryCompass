@@ -54,27 +54,15 @@ export function BookActions() {
       setBooks(liveBooks);
     });
     
-    let unsubscribeReaders: () => void;
-    // Only fetch all readers if user is admin/librarian
-    if (user?.role === 'admin' || user?.role === 'librarian') {
-        unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
-            const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
-            setReaders(liveReaders);
-        });
-    } else if (user) {
-        // If user is a reader, just fetch their own data
-        const readerDoc = doc(db, "users", user.id);
-        unsubscribeReaders = onSnapshot(readerDoc, (doc) => {
-            if (doc.exists()) {
-                setReaders([{ id: doc.id, ...doc.data() } as Reader]);
-            }
-        });
-    }
+    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
+        const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+        setReaders(liveReaders);
+    });
 
 
     return () => {
         unsubscribeBooks();
-        if (unsubscribeReaders) unsubscribeReaders();
+        unsubscribeReaders();
     };
   }, [user]);
 
@@ -181,7 +169,7 @@ export function BookActions() {
   }
 
   const handleReturnBookByTitle = async (book: Book) => {
-    const userWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
+    const userWithBook = readers.find(reader => (reader.borrowedBooks ?? []).includes(book.id));
     
     if (!userWithBook) {
       toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has this book borrowed."});
@@ -475,3 +463,5 @@ export function BookActions() {
     </Card>
   );
 }
+
+    
