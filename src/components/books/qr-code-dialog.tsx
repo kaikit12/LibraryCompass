@@ -25,7 +25,9 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
   useEffect(() => {
     if (book && isOpen) {
       setIsLoading(true);
-      const url = `${window.location.origin}/books/${book.id}`;
+      // Ensure book.id is encoded if it could contain special characters
+      const encodedBookId = encodeURIComponent(book.id);
+      const url = `${window.location.origin}/books/${encodedBookId}`;
       setBookUrl(url);
       // Give a brief moment for the state to update before hiding skeleton
       setTimeout(() => setIsLoading(false), 100); 
@@ -43,7 +45,7 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
         <DialogHeader>
           <DialogTitle>Mã QR Sách: {book?.title}</DialogTitle>
           <DialogDescription>
-            Quét để xem chi tiết sách.
+            Quét để xem chi tiết và mượn/trả sách.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center p-4 gap-4">
