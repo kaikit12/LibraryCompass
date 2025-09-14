@@ -59,11 +59,16 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
     return readers.map(reader => {
         const borrowedBookTitles = (reader.borrowedBooks || [])
-            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book');
+            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
+            // This is a simple way to simulate a broader history.
+            // In a real app, you'd store historical borrows in a separate collection.
+            .concat(reader.borrowingHistory || []); 
+            
+        const uniqueTitles = [...new Set(borrowedBookTitles)];
 
         return {
             ...reader,
-            borrowingHistory: borrowedBookTitles,
+            borrowingHistory: uniqueTitles,
         }
     });
   }, [readers, books]);
@@ -142,8 +147,14 @@ export function ReaderActions({ }: ReaderActionsProps) {
   };
 
   const handleOpenRecoDialog = (reader: Reader) => {
-    setSelectedReaderForReco(reader);
-    setIsRecoDialogOpen(true);
+    // Find the fully enriched reader object from our memoized list
+    const enrichedReader = enrichedReaders.find(r => r.id === reader.id);
+    if (enrichedReader) {
+        setSelectedReaderForReco(enrichedReader);
+        setIsRecoDialogOpen(true);
+    } else {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not find reader data.' });
+    }
   }
   
   const formatCurrency = (amount: number) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Reader } from "@/lib/types";
 import { getPersonalizedBookRecommendations } from "@/ai/flows/personalized-book-recommendations";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -24,13 +24,23 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
+    // Reset state when a new reader is selected
+    useEffect(() => {
+        if (isOpen) {
+            setPreferences('');
+            setRecommendations(null);
+            setIsLoading(false);
+        }
+    }, [isOpen, reader]);
+
+
     const handleGenerate = async () => {
         setIsLoading(true);
         setRecommendations(null);
         try {
             const result = await getPersonalizedBookRecommendations({
                 readerId: reader.id,
-                borrowingHistory: reader.borrowingHistory,
+                borrowingHistory: reader.borrowingHistory || [],
                 preferences: preferences,
             });
             setRecommendations(result.recommendations);
@@ -47,10 +57,6 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
 
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open);
-        if(!open) {
-            setRecommendations(null);
-            setPreferences('');
-        }
     }
     
     return (
@@ -72,7 +78,7 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
                             <CardContent className="pt-6">
                                 <h3 className="font-semibold mb-2">Borrowing History</h3>
                                 <div className="flex flex-wrap gap-2">
-                                {reader.borrowingHistory.length > 0 ? reader.borrowingHistory.map(title => (
+                                {(reader.borrowingHistory || []).length > 0 ? reader.borrowingHistory.map(title => (
                                     <Badge key={title} variant="secondary">{title}</Badge>
                                 )) : <p className="text-sm text-muted-foreground">No borrowing history.</p>}
                                 </div>
@@ -121,4 +127,5 @@ export function RecommendationsDialog({ reader, isOpen, setIsOpen }: Recommendat
             </DialogContent>
         </Dialog>
     );
-}
+
+    
