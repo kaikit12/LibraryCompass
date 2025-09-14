@@ -22,6 +22,9 @@ import { BorrowDialog } from "./borrow-dialog";
 interface BookActionsProps {
 }
 
+// NOTE: In a real app, you'd get this from your auth context
+const currentUserRole: Reader['role'] = 'librarian';
+
 export function BookActions({ }: BookActionsProps) {
   const [books, setBooks] = useState<Book[]>([]);
   const [readers, setReaders] = useState<Reader[]>([]);
@@ -135,9 +138,13 @@ export function BookActions({ }: BookActionsProps) {
   };
   
   const handleReturnBookByTitle = async (book: Book) => {
+    // Find the reader who borrowed this specific book.
+    // This logic assumes a book can only be borrowed by one person at a time,
+    // which is enforced by the borrowal subcollection logic.
     const readerWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
+    
     if (!readerWithBook) {
-      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has borrowed this book."});
+      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has this book borrowed."});
       return;
     }
     
@@ -185,9 +192,11 @@ export function BookActions({ }: BookActionsProps) {
                 {genres.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button onClick={handleOpenAdd}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Book
-            </Button>
+            { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+              <Button onClick={handleOpenAdd}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Book
+              </Button>
+            )}
           </div>
         </div>
 
@@ -231,23 +240,27 @@ export function BookActions({ }: BookActionsProps) {
                       <DropdownMenuItem onClick={() => handleReturnBookByTitle(book)} disabled={book.available === book.quantity}>
                         Return
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleOpenEdit(book)}>Edit</DropdownMenuItem>
-                      <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete</DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                              <AlertDialogHeader>
-                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                  <AlertDialogDescription>This will permanently delete "{book.title}". This action cannot be undone.</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteBook(book.id)}>Continue</AlertDialogAction>
-                              </AlertDialogFooter>
-                          </AlertDialogContent>
-                      </AlertDialog>
+                      { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleOpenEdit(book)}>Edit</DropdownMenuItem>
+                          <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete</DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                      <AlertDialogDescription>This will permanently delete "{book.title}". This action cannot be undone.</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteBook(book.id)}>Continue</AlertDialogAction>
+                                  </AlertDialogFooter>
+                              </AlertDialogContent>
+                          </AlertDialog>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

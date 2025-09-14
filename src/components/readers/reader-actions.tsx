@@ -20,6 +20,9 @@ import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "fireb
 interface ReaderActionsProps {
 }
 
+// NOTE: In a real app, you'd get this from your auth context
+const currentUserRole: Reader['role'] = 'librarian';
+
 export function ReaderActions({ }: ReaderActionsProps) {
   const [readers, setReaders] = useState<Reader[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
@@ -38,7 +41,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
     });
       
     const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
-      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as Reader));
       setReaders(liveReaders);
     });
 
@@ -76,7 +79,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
   }
 
   const handleOpenAdd = () => {
-    setEditingReader({ lateFees: 0 });
+    setEditingReader({ lateFees: 0, role: 'reader' });
     setIsAddEditOpen(true);
   };
 
@@ -99,6 +102,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 email: editingReader.email,
                 phone: editingReader.phone || '',
                 lateFees: Number(editingReader.lateFees) || 0,
+                role: editingReader.role || 'reader',
             });
             toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
         } else {
@@ -109,6 +113,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 booksOut: 0,
                 borrowedBooks: [],
                 lateFees: 0,
+                role: editingReader.role || 'reader',
             });
             toast({ title: '✅ Reader Added', description: `${editingReader.name} has been added.`});
         }
@@ -152,9 +157,11 @@ export function ReaderActions({ }: ReaderActionsProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search by name or email..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-          <Button onClick={handleOpenAdd}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Reader
-          </Button>
+          { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+            <Button onClick={handleOpenAdd}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Reader
+            </Button>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -165,6 +172,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 <TableHead>Email</TableHead>
                 <TableHead>Books Out</TableHead>
                 <TableHead>Late Fees</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
@@ -181,6 +189,9 @@ export function ReaderActions({ }: ReaderActionsProps) {
                             {formatCurrency(reader.lateFees || 0)}
                         </Badge>
                     </TableCell>
+                    <TableCell>
+                        <Badge variant="secondary">{reader.role}</Badge>
+                    </TableCell>
                     <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -195,30 +206,34 @@ export function ReaderActions({ }: ReaderActionsProps) {
                             <Sparkles className="mr-2 h-4 w-4 text-accent-foreground/80"/>
                             Get Recommendations
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleOpenEdit(reader)}>Edit Profile</DropdownMenuItem>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete Profile</DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will permanently delete {reader.name}'s profile. This action cannot be undone.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteReader(reader.id)}>Continue</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                         { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+                           <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleOpenEdit(reader)}>Edit Profile</DropdownMenuItem>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete Profile</DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will permanently delete {reader.name}'s profile. This action cannot be undone.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteReader(reader.id)}>Continue</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                           </>
+                         )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                     </TableCell>
                 </TableRow>
                 )) : (
                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                     No readers found.
                     </TableCell>
                 </TableRow>
@@ -248,6 +263,14 @@ export function ReaderActions({ }: ReaderActionsProps) {
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="lateFees" className="text-right">Late Fees</Label>
                 <Input id="lateFees" type="number" value={editingReader?.lateFees || 0} onChange={e => setEditingReader({...editingReader, lateFees: Number(e.target.value)})} className="col-span-3" />
+              </div>
+               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="role" className="text-right">Role</Label>
+                <select id="role" value={editingReader?.role || 'reader'} onChange={e => setEditingReader({...editingReader, role: e.target.value as Reader['role']})} className="col-span-3 border border-input bg-background rounded-md px-3 py-2 text-sm">
+                    <option value="reader">Reader</option>
+                    <option value="librarian">Librarian</option>
+                    <option value="admin">Admin</option>
+                </select>
               </div>
             </div>
             <DialogFooter>

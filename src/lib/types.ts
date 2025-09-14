@@ -19,4 +19,5 @@ export interface Reader {
   borrowedBooks: string[]; // array of book ids
   lateFees: number;
   borrowingHistory: string[]; // array of book titles, dynamically added
+  role: 'admin' | 'librarian' | 'reader';
 }
