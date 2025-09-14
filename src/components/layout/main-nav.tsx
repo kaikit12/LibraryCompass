@@ -20,7 +20,12 @@ export function MainNav() {
   const pathname = usePathname()
   const { user } = useAuth();
 
-  const availableLinks = links.filter(link => user?.role && link.roles.includes(user.role));
+  // Filter links based on the current user's role.
+  // The check for `user?.role` is important to prevent errors when the user object is still loading.
+  const availableLinks = user?.role
+    ? links.filter(link => link.roles.includes(user.role))
+    : [];
+
 
   return (
     <div className="p-2">
