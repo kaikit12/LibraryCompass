@@ -34,7 +34,7 @@ export default function StatsCards({ }: StatsCardsProps) {
        setBorrowedBooksCount(borrowed);
     });
 
-    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
       let fees = 0;
       snapshot.forEach(doc => {
         const reader = doc.data() as Reader;

@@ -44,7 +44,7 @@ export default function BookDetailPage() {
     let unsubscribeReaders: Unsubscribe | undefined;
 
     if (currentUser.role === 'admin' || currentUser.role === 'librarian') {
-        unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+        unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
             const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
             setReaders(liveReaders);
         });

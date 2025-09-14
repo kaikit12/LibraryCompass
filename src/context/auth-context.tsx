@@ -32,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // User is signed in, get their data from Firestore
-                const userRef = doc(db, 'readers', firebaseUser.uid);
+                // User is signed in, get their data from Firestore from 'users' collection
+                const userRef = doc(db, 'users', firebaseUser.uid);
                 const docSnap = await getDoc(userRef);
                 if (docSnap.exists()) {
                     setUser({ id: docSnap.id, uid: firebaseUser.uid, ...docSnap.data() } as Reader & { uid: string });
@@ -60,8 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const firebaseUser = userCredential.user;
         
-        // Create a document in Firestore for the new user
-        await setDoc(doc(db, "readers", firebaseUser.uid), {
+        // Create a document in Firestore in the 'users' collection for the new user
+        await setDoc(doc(db, "users", firebaseUser.uid), {
             uid: firebaseUser.uid,
             name: name,
             email: email,

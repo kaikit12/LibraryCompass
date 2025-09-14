@@ -39,21 +39,20 @@ export function ReaderActions({ }: ReaderActionsProps) {
   const [selectedReaderForReco, setSelectedReaderForReco] = useState<Reader | null>(null);
 
   useEffect(() => {
-    const unsubscribeReaders = onSnapshot(collection(db, "readers"), (snapshot) => {
+    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as Reader));
       setReaders(liveReaders);
     });
 
-    return () => unsubscribeReaders();
-  }, []);
-
-  useEffect(() => {
     const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
         const liveBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
         setBooks(liveBooks);
     });
       
-    return () => unsubscribeBooks();
+    return () => {
+        unsubscribeReaders();
+        unsubscribeBooks();
+    };
   }, []);
 
   const enrichedReaders = useMemo(() => {
@@ -106,7 +105,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
     try {
         if (editingReader.id) {
-            const readerRef = doc(db, 'readers', editingReader.id);
+            const readerRef = doc(db, 'users', editingReader.id);
             await updateDoc(readerRef, {
                 name: editingReader.name,
                 email: editingReader.email,
@@ -117,7 +116,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
             toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
         } else {
             // This path is less likely with auth in place, but kept for completeness
-            await addDoc(collection(db, 'readers'), {
+            await addDoc(collection(db, 'users'), {
                 name: editingReader.name,
                 email: editingReader.email,
                 phone: editingReader.phone || '',
@@ -144,7 +143,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
     }
     
     try {
-        await deleteDoc(doc(db, 'readers', readerId));
+        await deleteDoc(doc(db, 'users', readerId));
         toast({ title: '✅ Reader Deleted', description: 'The reader has been removed from the system.'});
     } catch(error) {
         toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete reader.'});

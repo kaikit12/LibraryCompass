@@ -56,7 +56,7 @@ export function BookActions({ }: BookActionsProps) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "readers"), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
       setReaders(liveReaders);
     });

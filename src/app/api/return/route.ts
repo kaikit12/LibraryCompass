@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
-        const userRef = doc(db, 'readers', userId);
+        const userRef = doc(db, 'users', userId);
 
         // This transaction needs the user doc for updates later
         const userDoc = await transaction.get(userRef);

@@ -27,7 +27,7 @@ export default function OverdueBooks() {
       const booksSnapshot = await getDocs(collection(db, "books"));
       const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
 
-      const readersSnapshot = await getDocs(collection(db, "readers"));
+      const readersSnapshot = await getDocs(collection(db, "users"));
       const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
       
       const today = new Date();
