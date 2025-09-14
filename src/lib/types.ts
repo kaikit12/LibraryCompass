@@ -18,4 +18,5 @@ export interface Reader {
   booksOut: number;
   borrowedBooks: string[]; // array of book ids
   lateFees: number;
+  borrowingHistory: string[]; // array of book titles, dynamically added
 }
