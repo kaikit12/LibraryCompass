@@ -6,10 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { differenceInDays, format } from 'date-fns';
+import { differenceInDays, format, isPast } from 'date-fns';
 import { Bell } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 
 interface OverdueEntry {
   bookTitle: string;
@@ -23,11 +23,10 @@ export default function OverdueBooks() {
   const [overdueEntries, setOverdueEntries] = useState<OverdueEntry[]>([]);
 
   useEffect(() => {
-    const today = new Date();
     const borrowalsColRef = collection(db, "borrowals");
-    const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", today));
+    const q = query(borrowalsColRef, where("status", "==", "borrowed"));
 
-    const unsubscribe = onSnapshot(q, async (overdueSnapshot) => {
+    const unsubscribe = onSnapshot(q, async (borrowalsSnapshot) => {
         const booksSnapshot = await getDocs(collection(db, "books"));
         const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
 
@@ -35,20 +34,24 @@ export default function OverdueBooks() {
         const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
 
         const newOverdueEntries: OverdueEntry[] = [];
-        overdueSnapshot.forEach(doc => {
+        borrowalsSnapshot.forEach(doc => {
             const borrowalData = doc.data();
-            const user = readersMap.get(borrowalData.userId);
-            const book = booksMap.get(borrowalData.bookId);
+            const dueDate = borrowalData.dueDate.toDate();
 
-            if (user && book) {
-                const dueDate = borrowalData.dueDate.toDate();
-                const daysOverdue = differenceInDays(today, dueDate);
-                newOverdueEntries.push({
-                    bookTitle: book.title,
-                    userName: user.name,
-                    dueDate: format(dueDate, 'PPP'),
-                    daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
-                });
+            // Client-side filtering for overdue books
+            if (isPast(dueDate)) {
+                const user = readersMap.get(borrowalData.userId);
+                const book = booksMap.get(borrowalData.bookId);
+
+                if (user && book) {
+                    const daysOverdue = differenceInDays(new Date(), dueDate);
+                    newOverdueEntries.push({
+                        bookTitle: book.title,
+                        userName: user.name,
+                        dueDate: format(dueDate, 'PPP'),
+                        daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
+                    });
+                }
             }
         });
         setOverdueEntries(newOverdueEntries);

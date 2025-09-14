@@ -4,9 +4,9 @@ import { Book, Reader } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookCopy, Users, Library, AlertTriangle, DollarSign, BookUp, BookDown, CalendarClock } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { Progress } from '@/components/ui/progress';
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, isToday, isPast } from 'date-fns';
 
 interface StatsCardsProps {
 }
@@ -46,39 +46,47 @@ export default function StatsCards({ }: StatsCardsProps) {
       setLateFeeRevenue(fees);
     });
     
-    // This subscription handles all time-based stats by listening to the new `borrowals` collection
-    const fetchDailyStats = () => {
-        const today = new Date();
-        const startOfToday = startOfDay(today);
-        const endOfToday = endOfDay(today);
-        const borrowalsColRef = collection(db, "borrowals");
+    // This subscription handles all time-based stats by listening to the `borrowals` collection
+    const borrowalsColRef = collection(db, "borrowals");
+    const unsubscribeBorrowals = onSnapshot(borrowalsColRef, (snapshot) => {
+        let borrowedTodayCount = 0;
+        let returnedTodayCount = 0;
+        let dueTodayCount = 0;
+        let overdueCountValue = 0;
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const borrowedAt = data.borrowedAt?.toDate();
+            const returnedAt = data.returnedAt?.toDate();
+            const dueDate = data.dueDate?.toDate();
 
-        // Overdue
-        const overdueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", "<", today));
-        const unsubscribeOverdue = onSnapshot(overdueQuery, snapshot => setOverdueCount(snapshot.size));
-
-        // Borrowed Today
-        const borrowedQuery = query(borrowalsColRef, where("borrowedAt", ">=", startOfToday), where("borrowedAt", "<=", endOfToday));
-        const unsubscribeBorrowed = onSnapshot(borrowedQuery, snapshot => setBorrowedToday(snapshot.size));
-
-        // Due Today
-        const dueQuery = query(borrowalsColRef, where("status", "==", "borrowed"), where("dueDate", ">=", startOfToday), where("dueDate", "<=", endOfToday));
-        const unsubscribeDue = onSnapshot(dueQuery, snapshot => setDueToday(snapshot.size));
-
-        // Returned Today
-        const returnedQuery = query(borrowalsColRef, where("returnedAt", ">=", startOfToday), where("returnedAt", "<=", endOfToday));
-        const unsubscribeReturned = onSnapshot(returnedQuery, snapshot => setReturnedToday(snapshot.size));
-
-        return [unsubscribeOverdue, unsubscribeBorrowed, unsubscribeDue, unsubscribeReturned];
-    }
-
-    const dailyStatsUnsubscribers = fetchDailyStats();
+            if(borrowedAt && isToday(borrowedAt)) {
+                borrowedTodayCount++;
+            }
+            if(returnedAt && isToday(returnedAt)) {
+                returnedTodayCount++;
+            }
+            if(data.status === 'borrowed' && dueDate) {
+                if(isToday(dueDate)) {
+                    dueTodayCount++;
+                }
+                if(isPast(dueDate) && !isToday(dueDate)) {
+                    overdueCountValue++;
+                }
+            }
+        });
+        
+        setBorrowedToday(borrowedTodayCount);
+        setReturnedToday(returnedTodayCount);
+        setDueToday(dueTodayCount);
+        setOverdueCount(overdueCountValue);
+    });
     
     // Cleanup all subscriptions on component unmount
     return () => {
         unsubscribeBooks();
         unsubscribeReaders();
-        dailyStatsUnsubscribers.forEach(unsub => unsub());
+        unsubscribeBorrowals();
     };
   }, []);
   
