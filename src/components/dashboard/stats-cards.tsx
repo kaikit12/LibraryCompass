@@ -53,6 +53,7 @@ export default function StatsCards({ }: StatsCardsProps) {
         let returnedTodayCount = 0;
         let dueTodayCount = 0;
         let overdueCountValue = 0;
+        const today = new Date();
         
         snapshot.forEach(doc => {
             const data = doc.data();
@@ -70,7 +71,7 @@ export default function StatsCards({ }: StatsCardsProps) {
                 if(isToday(dueDate)) {
                     dueTodayCount++;
                 }
-                if(isPast(dueDate) && !isToday(dueDate)) {
+                if(isPast(dueDate) && !isToday(dueDate)) { // Check if due date is in the past but not today
                     overdueCountValue++;
                 }
             }

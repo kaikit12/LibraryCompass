@@ -25,7 +25,7 @@ export default function OverdueBooks() {
 
   useEffect(() => {
     const borrowalsColRef = collection(db, "borrowals");
-    const q = query(borrowalsColRef, where("status", "==", "borrowed"), where("isOverdue", "==", true));
+    const q = query(borrowalsColRef, where("status", "==", "borrowed"));
 
     const unsubscribe = onSnapshot(q, async (borrowalsSnapshot) => {
         const booksSnapshot = await getDocs(collection(db, "books"));
@@ -35,23 +35,31 @@ export default function OverdueBooks() {
         const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
 
         const newOverdueEntries: OverdueEntry[] = [];
+        const today = new Date();
+
         borrowalsSnapshot.forEach(doc => {
             const borrowalData = doc.data();
             const dueDate = borrowalData.dueDate.toDate();
-            const user = readersMap.get(borrowalData.userId);
-            const book = booksMap.get(borrowalData.bookId);
+            
+            // Client-side check for overdue status
+            if (isPast(dueDate)) {
+                const user = readersMap.get(borrowalData.userId);
+                const book = booksMap.get(borrowalData.bookId);
 
-            if (user && book) {
-                const daysOverdue = differenceInDays(new Date(), dueDate);
-                newOverdueEntries.push({
-                    userId: user.id,
-                    bookTitle: book.title,
-                    userName: user.name,
-                    dueDate: format(dueDate, 'PPP'),
-                    daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
-                });
+                if (user && book) {
+                    const daysOverdue = differenceInDays(today, dueDate);
+                    newOverdueEntries.push({
+                        userId: user.id,
+                        bookTitle: book.title,
+                        userName: user.name,
+                        dueDate: format(dueDate, 'PPP'),
+                        daysOverdue: daysOverdue > 0 ? daysOverdue : 1, // Ensure at least 1 day overdue is shown
+                    });
+                }
             }
         });
+        // Sort by most days overdue
+        newOverdueEntries.sort((a, b) => b.daysOverdue - a.daysOverdue);
         setOverdueEntries(newOverdueEntries);
     });
 
