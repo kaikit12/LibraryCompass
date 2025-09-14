@@ -25,7 +25,8 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
   useEffect(() => {
     if (book && isOpen) {
       setIsLoading(true);
-      const dataToEncode = `${window.location.origin}/books/${book.id}`;
+      const encodedBookId = encodeURIComponent(book.id);
+      const dataToEncode = `${window.location.origin}/books/${encodedBookId}`;
       // Using a free QR code API
       const url = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(dataToEncode)}`;
       setQrCodeUrl(url);
