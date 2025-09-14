@@ -43,6 +43,7 @@ export function BorrowDialog({
   const { toast } = useToast();
 
   useEffect(() => {
+    // If the dialog is open and the current user is a reader, pre-select them.
     if (isOpen && user?.role === 'reader' && user?.id) {
         setSelectedUserId(user.id);
     }
@@ -86,6 +87,7 @@ export function BorrowDialog({
 
   const handleClose = () => {
     setIsOpen(false);
+    // Only reset the selected user if they are not a reader
     if(user?.role !== 'reader') {
         setSelectedUserId("");
     }
