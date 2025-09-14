@@ -16,6 +16,7 @@ import { RecommendationsDialog } from "./recommendations-dialog";
 import { Badge } from "../ui/badge";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 interface ReaderActionsProps {
 }
@@ -266,11 +267,16 @@ export function ReaderActions({ }: ReaderActionsProps) {
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="role" className="text-right">Role</Label>
-                <select id="role" value={editingReader?.role || 'reader'} onChange={e => setEditingReader({...editingReader, role: e.target.value as Reader['role']})} className="col-span-3 border border-input bg-background rounded-md px-3 py-2 text-sm">
-                    <option value="reader">Reader</option>
-                    <option value="librarian">Librarian</option>
-                    <option value="admin">Admin</option>
-                </select>
+                 <Select value={editingReader?.role || 'reader'} onValueChange={(value) => setEditingReader({...editingReader, role: value as Reader['role']})}>
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="reader">Reader</SelectItem>
+                        <SelectItem value="librarian">Librarian</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
