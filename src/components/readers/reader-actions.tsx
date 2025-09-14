@@ -22,7 +22,7 @@ interface ReaderActionsProps {
 }
 
 // NOTE: In a real app, you'd get this from your auth context
-const currentUserRole: Reader['role'] = 'librarian';
+const currentUserRole: Reader['role'] = 'admin';
 
 export function ReaderActions({ }: ReaderActionsProps) {
   const [readers, setReaders] = useState<Reader[]>([]);
@@ -224,7 +224,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
                             <DropdownMenuItem onClick={() => handleOpenEdit(reader)}>Edit Profile</DropdownMenuItem>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete Profile</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={reader.booksOut > 0}>Delete Profile</DropdownMenuItem>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
@@ -274,11 +274,11 @@ export function ReaderActions({ }: ReaderActionsProps) {
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="lateFees" className="text-right">Late Fees</Label>
-                <Input id="lateFees" type="number" value={editingReader?.lateFees || 0} onChange={e => setEditingReader({...editingReader, lateFees: Number(e.target.value)})} className="col-span-3" />
+                <Input id="lateFees" type="number" value={editingReader?.lateFees || 0} onChange={e => setEditingReader({...editingReader, lateFees: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="role" className="text-right">Role</Label>
-                 <Select value={editingReader?.role || 'reader'} onValueChange={(value) => setEditingReader({...editingReader, role: value as Reader['role']})}>
+                 <Select value={editingReader?.role || 'reader'} onValueChange={(value) => setEditingReader({...editingReader, role: value as Reader['role']})} disabled={currentUserRole !== 'admin'}>
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select a role" />
                     </SelectTrigger>

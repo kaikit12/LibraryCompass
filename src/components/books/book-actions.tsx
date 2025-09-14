@@ -24,7 +24,7 @@ interface BookActionsProps {
 }
 
 // NOTE: In a real app, you'd get this from your auth context
-const currentUserRole: Reader['role'] = 'librarian';
+const currentUserRole: Reader['role'] = 'admin';
 
 export function BookActions({ }: BookActionsProps) {
   const [books, setBooks] = useState<Book[]>([]);
