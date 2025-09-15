@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookCopy, CheckCircle, XCircle, ArrowLeft, Users } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { BorrowDialog } from "@/components/books/borrow-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
@@ -66,7 +67,7 @@ export default function BookDetailPage() {
     if (!book) return;
     
     // This logic is for librarians/admins, so `readers` will be populated.
-    const userWithBook = readers.find(reader => reader.borrowedBooks.includes(book.id));
+    const userWithBook = readers.find(reader => (reader.borrowedBooks ?? []).includes(book.id));
     
     if (!userWithBook) {
       toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has this book borrowed."});
@@ -100,6 +101,7 @@ export default function BookDetailPage() {
             <Skeleton className="h-4 w-1/3" />
           </CardHeader>
           <CardContent className="space-y-4">
+            <Skeleton className="h-40 w-full" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-10 w-32" />
@@ -137,13 +139,26 @@ export default function BookDetailPage() {
         </div>
 
       <Card>
-        <CardHeader>
+        {book.imageUrl && (
+            <div className="relative h-64 w-full">
+                <Image
+                    src={book.imageUrl}
+                    alt={`Cover of ${book.title}`}
+                    fill
+                    className="object-cover rounded-t-lg"
+                />
+            </div>
+        )}
+        <CardHeader className={!book.imageUrl ? '' : 'pt-6'}>
           <CardTitle className="font-headline text-3xl">{book.title}</CardTitle>
           <CardDescription>By {book.author}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
             <div className="flex justify-between items-center">
-                <Badge variant="secondary" className="text-lg">{book.genre}</Badge>
+                <div>
+                  <Badge variant="secondary" className="text-lg">{book.genre}</Badge>
+                  {book.libraryId && <Badge variant="outline" className="text-md ml-2">ID: {book.libraryId}</Badge>}
+                </div>
                 <div className="text-right">
                     <div className="font-bold text-lg">{book.available} / {book.quantity}</div>
                     <div className="text-sm text-muted-foreground">Available</div>

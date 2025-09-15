@@ -8,6 +8,9 @@ export interface Book {
   dueDate?: string; // ISO string
   quantity: number;
   available: number;
+  libraryId?: string; // Custom ID for library management
+  lateFeePerDay?: number;
+  imageUrl?: string;
 }
 
 export interface Reader {

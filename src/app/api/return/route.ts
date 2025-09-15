@@ -4,7 +4,7 @@ import { doc, runTransaction, increment, arrayRemove, collection, query, where, 
 import { differenceInDays } from 'date-fns';
 import { createNotification } from '@/lib/notifications';
 
-const LATE_FEE_PER_DAY = 1.00; // $1 per day
+const DEFAULT_LATE_FEE_PER_DAY = 1.00; // Default $1 per day if not specified on the book
 
 export async function POST(request: Request) {
   try {
@@ -50,14 +50,16 @@ export async function POST(request: Request) {
             throw new Error("Borrowal record disappeared during transaction.");
         }
         
-        bookTitle = bookDoc.data().title;
+        const bookData = bookDoc.data();
+        bookTitle = bookData.title;
         const borrowalData = currentBorrowalDoc.data();
         const dueDate = borrowalData.dueDate.toDate();
         const returnDate = new Date();
 
         daysLate = differenceInDays(returnDate, dueDate);
         if (daysLate > 0) {
-          lateFee = daysLate * LATE_FEE_PER_DAY;
+          const lateFeePerDay = bookData.lateFeePerDay || DEFAULT_LATE_FEE_PER_DAY;
+          lateFee = daysLate * lateFeePerDay;
         }
 
         // Perform writes

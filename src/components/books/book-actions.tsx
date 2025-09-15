@@ -88,7 +88,10 @@ export function BookActions() {
 
   const filteredBooks = useMemo(() => {
     return books.filter(book => {
-      const searchMatch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) || book.author.toLowerCase().includes(searchTerm.toLowerCase());
+      const lowerCaseSearch = searchTerm.toLowerCase();
+      const searchMatch = book.title.toLowerCase().includes(lowerCaseSearch) || 
+                        book.author.toLowerCase().includes(lowerCaseSearch) ||
+                        (book.libraryId && book.libraryId.toLowerCase().includes(lowerCaseSearch));
       const statusMatch = statusFilter === 'all' || book.status.toLowerCase() === statusFilter;
       const genreMatch = genreFilter === 'all' || book.genre === genreFilter;
       return searchMatch && statusMatch && genreMatch;
@@ -96,7 +99,7 @@ export function BookActions() {
   }, [books, searchTerm, statusFilter, genreFilter]);
 
   const handleOpenAdd = () => {
-    setEditingBook({ quantity: 1, available: 1 });
+    setEditingBook({ quantity: 1, available: 1, lateFeePerDay: 1 });
     setIsAddEditOpen(true);
   }
 
@@ -111,32 +114,39 @@ export function BookActions() {
       return;
     }
     
-    const quantity = Number(editingBook.quantity)
+    const quantity = Number(editingBook.quantity);
     const available = editingBook.id ? Number(editingBook.available) : quantity;
+    const lateFee = Number(editingBook.lateFeePerDay) || 0;
 
      if (isNaN(quantity) || quantity < 0) {
       toast({ variant: 'destructive', title: '❌ Error', description: 'Quantity must be a non-negative number.' });
       return;
     }
+     if (isNaN(lateFee) || lateFee < 0) {
+      toast({ variant: 'destructive', title: '❌ Error', description: 'Late fee must be a non-negative number.' });
+      return;
+    }
+
+    const bookData: Partial<Book> = {
+        title: editingBook.title,
+        author: editingBook.author,
+        genre: editingBook.genre,
+        quantity: quantity,
+        libraryId: editingBook.libraryId || '',
+        imageUrl: editingBook.imageUrl || '',
+        lateFeePerDay: lateFee,
+    };
 
     try {
       if (editingBook.id) {
         // Edit
         const bookRef = doc(db, 'books', editingBook.id);
-        await updateDoc(bookRef, {
-            title: editingBook.title,
-            author: editingBook.author,
-            genre: editingBook.genre,
-            quantity: quantity,
-        });
+        await updateDoc(bookRef, bookData);
         toast({ title: '✅ Book Updated', description: `"${editingBook.title}" has been updated.`});
       } else {
         // Add
         await addDoc(collection(db, 'books'), {
-            title: editingBook.title,
-            author: editingBook.author,
-            genre: editingBook.genre,
-            quantity: quantity,
+            ...bookData,
             available: available,
             status: available > 0 ? 'Available' : 'Borrowed'
         });
@@ -199,7 +209,7 @@ export function BookActions() {
             <div className="flex flex-col sm:flex-row gap-2 flex-wrap flex-grow">
                 <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search by title or author..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    <Input placeholder="Search by title, author, or ID..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-full sm:w-[160px]">
@@ -240,6 +250,7 @@ export function BookActions() {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Author</TableHead>
+                  <TableHead>Library ID</TableHead>
                   <TableHead>Genre</TableHead>
                   <TableHead>Availability</TableHead>
                   <TableHead>Status</TableHead>
@@ -251,6 +262,7 @@ export function BookActions() {
                   <TableRow key={book.id}>
                     <TableCell className="font-medium">{book.title}</TableCell>
                     <TableCell>{book.author}</TableCell>
+                    <TableCell><Badge variant="outline">{book.libraryId || 'N/A'}</Badge></TableCell>
                     <TableCell><Badge variant="secondary">{book.genre}</Badge></TableCell>
                     <TableCell>{book.available} / {book.quantity}</TableCell>
                     <TableCell>
@@ -307,7 +319,7 @@ export function BookActions() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       No books found.
                     </TableCell>
                   </TableRow>
@@ -370,6 +382,10 @@ export function BookActions() {
                             </DropdownMenu>
                         </div>
                         <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Library ID</span>
+                             <Badge variant="outline">{book.libraryId || 'N/A'}</Badge>
+                        </div>
+                        <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Genre</span>
                             <Badge variant="secondary">{book.genre}</Badge>
                         </div>
@@ -411,6 +427,10 @@ export function BookActions() {
                 <Label htmlFor="author" className="text-right">Author</Label>
                 <Input id="author" value={editingBook?.author || ''} onChange={e => setEditingBook({...editingBook, author: e.target.value})} className="col-span-3" />
               </div>
+               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="libraryId" className="text-right">Library ID</Label>
+                <Input id="libraryId" value={editingBook?.libraryId || ''} onChange={e => setEditingBook({...editingBook, libraryId: e.target.value})} className="col-span-3" />
+              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="genre" className="text-right">Genre</Label>
                  <Select value={editingBook?.genre || ''} onValueChange={(value) => setEditingBook({...editingBook, genre: value})}>
@@ -425,6 +445,14 @@ export function BookActions() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="quantity" className="text-right">Quantity</Label>
                 <Input id="quantity" type="number" value={editingBook?.quantity || 1} onChange={e => setEditingBook({...editingBook, quantity: Number(e.target.value)})} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="lateFee" className="text-right">Late Fee/Day</Label>
+                <Input id="lateFee" type="number" value={editingBook?.lateFeePerDay || 0} onChange={e => setEditingBook({...editingBook, lateFeePerDay: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
+              </div>
+               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="imageUrl" className="text-right">Image URL</Label>
+                <Input id="imageUrl" value={editingBook?.imageUrl || ''} onChange={e => setEditingBook({...editingBook, imageUrl: e.target.value})} className="col-span-3" placeholder="https://example.com/image.png"/>
               </div>
             </div>
             <DialogFooter>
