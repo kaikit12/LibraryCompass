@@ -13,12 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles, UploadCloud } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { BorrowDialog } from "./borrow-dialog";
 import { QRCodeDialog } from "./qr-code-dialog";
 import { useAuth } from "@/context/auth-context";
@@ -43,9 +41,6 @@ export function BookActions() {
   const [isRecoDialogOpen, setIsRecoDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [editingBook, setEditingBook] = useState<Partial<Book> | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   
   useEffect(() => {
@@ -106,39 +101,18 @@ export function BookActions() {
 
   const resetDialogState = () => {
       setEditingBook(null);
-      setImageFile(null);
-      setImagePreview(null);
-      setUploadProgress(null);
       setIsAddEditOpen(false);
   }
 
   const handleOpenAdd = () => {
     setEditingBook({ quantity: 1, available: 1, lateFeePerDay: 1 });
-    setImagePreview(null);
-    setImageFile(null);
-    setUploadProgress(null);
     setIsAddEditOpen(true);
   }
 
   const handleOpenEdit = (book: Book) => {
     setEditingBook(book);
-    setImagePreview(book.imageUrl || null);
-    setImageFile(null);
-    setUploadProgress(null);
     setIsAddEditOpen(true);
   }
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
   
   const handleSaveBook = async () => {
     if (!editingBook?.title || !editingBook?.author || !editingBook?.genre || editingBook?.quantity === undefined) {
@@ -166,34 +140,10 @@ export function BookActions() {
         quantity: quantity,
         libraryId: editingBook.libraryId || '',
         lateFeePerDay: lateFee,
+        imageUrl: editingBook.imageUrl || '',
     };
 
     try {
-      let finalImageUrl = editingBook.imageUrl || '';
-      if (imageFile) {
-        setUploadProgress(0);
-        const storageRef = ref(storage, `book-covers/${Date.now()}_${imageFile.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, imageFile);
-
-        finalImageUrl = await new Promise((resolve, reject) => {
-            uploadTask.on('state_changed', 
-                (snapshot) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    setUploadProgress(progress);
-                },
-                (error) => {
-                    console.error("Upload failed:", error);
-                    reject(error);
-                },
-                async () => {
-                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                    resolve(downloadURL);
-                }
-            );
-        });
-      }
-      bookData.imageUrl = finalImageUrl;
-
       if (editingBook.id) {
         // Edit
         const bookRef = doc(db, 'books', editingBook.id);
@@ -211,7 +161,6 @@ export function BookActions() {
       resetDialogState();
     } catch (error) {
       toast({ variant: 'destructive', title: '❌ Error', description: 'There was a problem saving the book.'});
-      setUploadProgress(null);
     }
   }
 
@@ -507,27 +456,20 @@ export function BookActions() {
                 <Input id="lateFee" type="number" value={editingBook?.lateFeePerDay || 0} onChange={e => setEditingBook({...editingBook, lateFeePerDay: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
               </div>
                <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="image" className="text-right pt-2">Cover Image</Label>
+                    <Label htmlFor="imageUrl" className="text-right pt-2">Cover Image URL</Label>
                     <div className="col-span-3 space-y-2">
-                        <Input id="image" type="file" accept="image/*" onChange={handleImageChange} className="col-span-3" />
-                        {imagePreview && (
+                        <Input id="imageUrl" value={editingBook?.imageUrl || ''} onChange={e => setEditingBook({...editingBook, imageUrl: e.target.value})} className="col-span-3" />
+                        {editingBook?.imageUrl && (
                              <div className="relative w-full aspect-video rounded border bg-muted">
-                                <img src={imagePreview} alt="Preview" className="h-full w-full object-contain rounded" />
+                                <img src={editingBook.imageUrl} alt="Preview" className="h-full w-full object-contain rounded" />
                              </div>
-                        )}
-                        {uploadProgress !== null && (
-                            <div className="space-y-1">
-                                <Progress value={uploadProgress} />
-                                <p className="text-xs text-muted-foreground text-center">Uploading... {Math.round(uploadProgress)}%</p>
-                            </div>
                         )}
                     </div>
                 </div>
             </div>
             <DialogFooter className="mt-auto pt-4 border-t">
               <Button type="button" variant="secondary" onClick={resetDialogState}>Cancel</Button>
-              <Button type="submit" onClick={handleSaveBook} disabled={uploadProgress !== null && uploadProgress < 100}>
-                {uploadProgress !== null && uploadProgress < 100 ? <UploadCloud className="mr-2 animate-pulse" /> : null}
+              <Button type="submit" onClick={handleSaveBook}>
                 Save changes
               </Button>
             </DialogFooter>
@@ -561,5 +503,3 @@ export function BookActions() {
     </Card>
   );
 }
-
-    

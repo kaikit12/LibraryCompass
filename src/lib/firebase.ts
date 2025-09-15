@@ -17,7 +17,8 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
-const storage = getStorage(app);
+// Storage is not used in this version to support Firestore Spark plan
+// const storage = getStorage(app);
 
 
-export { db, auth, storage, onSnapshot };
+export { db, auth, onSnapshot };
