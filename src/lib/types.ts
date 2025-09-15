@@ -4,8 +4,6 @@ export interface Book {
   author: string;
   genre: string;
   status: 'Available' | 'Borrowed';
-  borrowedBy?: string; // readerId
-  dueDate?: string; // ISO string
   quantity: number;
   available: number;
   libraryId?: string; // Custom ID for library management
@@ -23,7 +21,7 @@ export interface Reader {
   booksOut: number;
   borrowedBooks: string[]; // array of book ids
   lateFees: number;
-  borrowingHistory: string[]; // array of book titles, dynamically added
+  borrowingHistory: string[]; // array of book ids, NOT titles
   role: 'admin' | 'librarian' | 'reader';
 }
 

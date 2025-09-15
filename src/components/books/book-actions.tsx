@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Book, Reader } from "@/lib/types";
-import { genres } from "@/lib/data";
+import { genres } from "@/lib/genres";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -96,7 +96,7 @@ export function BookActions() {
       const searchMatch = book.title.toLowerCase().includes(lowerCaseSearch) || 
                         book.author.toLowerCase().includes(lowerCaseSearch) ||
                         (book.libraryId && book.libraryId.toLowerCase().includes(lowerCaseSearch));
-      const statusMatch = statusFilter === 'all' || book.status.toLowerCase() === statusFilter;
+      const statusMatch = statusFilter === 'all' || book.status.toLowerCase() === statusFilter.toLowerCase();
       const genreMatch = genreFilter === 'all' || book.genre === genreFilter;
       return searchMatch && statusMatch && genreMatch;
     });
@@ -136,7 +136,7 @@ export function BookActions() {
       return;
     }
 
-    const bookData: Partial<Book> = {
+    const bookData: Omit<Book, 'id' | 'status' | 'available'> & { available?: number, status?: 'Available' | 'Borrowed'} = {
         title: editingBook.title,
         author: editingBook.author,
         genre: editingBook.genre,
@@ -155,11 +155,9 @@ export function BookActions() {
         toast({ title: '✅ Book Updated', description: `"${editingBook.title}" has been updated.`});
       } else {
         // Add
-        await addDoc(collection(db, 'books'), {
-            ...bookData,
-            available: available,
-            status: available > 0 ? 'Available' : 'Borrowed'
-        });
+        bookData.available = available;
+        bookData.status = available > 0 ? 'Available' : 'Borrowed';
+        await addDoc(collection(db, 'books'), bookData);
         toast({ title: '✅ Book Added', description: `"${editingBook.title}" has been added to the library.`});
       }
       resetDialogState();
@@ -491,7 +489,7 @@ export function BookActions() {
                <div className="grid grid-cols-4 items-start gap-4">
                     <Label htmlFor="imageUrl" className="text-right pt-2">Cover Image URL</Label>
                     <div className="col-span-3 space-y-2">
-                        <Input id="imageUrl" value={editingBook?.imageUrl || ''} onChange={e => setEditingBook({...editingBook, imageUrl: e.target.value})} className="col-span-3" />
+                        <Input id="imageUrl" value={editingBook?.imageUrl || ''} onChange={e => setEditingBook({...editingBook, imageUrl: e.target.value})} className="col-span-3" placeholder="https://example.com/cover.jpg" />
                         {editingBook?.imageUrl && (
                              <div className="relative w-full aspect-video rounded border bg-muted">
                                 <img src={editingBook.imageUrl} alt="Preview" className="h-full w-full object-contain rounded" />

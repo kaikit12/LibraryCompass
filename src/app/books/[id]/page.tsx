@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookCopy, CheckCircle, XCircle, ArrowLeft, Users } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import { BorrowDialog } from "@/components/books/borrow-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
@@ -165,6 +164,10 @@ export default function BookDetailPage() {
                     <div className="text-sm text-muted-foreground">Available</div>
                 </div>
             </div>
+
+            {book.description && (
+                <p className="text-muted-foreground italic border-l-4 pl-4">{book.description}</p>
+            )}
 
             <div className="flex items-center gap-2">
                 { isBorrowable ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" /> }

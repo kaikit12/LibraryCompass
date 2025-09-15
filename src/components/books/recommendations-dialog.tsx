@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Reader } from "@/lib/types";
 import { getPersonalizedBookRecommendations } from "@/ai/flows/personalized-book-recommendations";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +64,7 @@ export function PersonalizedRecommendationsDialog({ readers, isOpen, setIsOpen }
         try {
             const result = await getPersonalizedBookRecommendations({
                 readerId: selectedReader.id,
+                // The enriched `borrowingHistory` on the reader object now contains titles
                 borrowingHistory: selectedReader.borrowingHistory || [],
                 preferences: preferences,
             });

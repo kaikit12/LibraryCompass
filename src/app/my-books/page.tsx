@@ -1,96 +1,123 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Unsubscribe, doc, getDoc } from 'firebase/firestore';
-import { Book, Reader, Notification, Transaction } from '@/lib/types';
+import { collection, query, where, onSnapshot, Unsubscribe, doc, getDoc, getDocs } from 'firebase/firestore';
+import { Book, Reader } from '@/lib/types';
+import { getPersonalizedBookRecommendations } from '@/ai/flows/personalized-book-recommendations';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { getPersonalizedBookRecommendations, PersonalizedBookRecommendationsOutput } from '@/ai/flows/personalized-book-recommendations';
-import { Loader2, BookOpen, Clock, History, DollarSign, Sparkles } from 'lucide-react';
+import { Loader2, BookOpen, Sparkles, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-interface BorrowedBook extends Book {
+interface Borrowal {
+    id: string;
+    bookId: string;
+    userId: string;
+    dueDate: Date;
+}
+
+interface BorrowedBookView extends Book {
     dueDate: string;
 }
 
 export default function MyBooksPage() {
     const { user } = useAuth();
-    const [borrowedBooks, setBorrowedBooks] = useState<BorrowedBook[]>([]);
-    const [borrowingHistory, setBorrowingHistory] = useState<Book[]>([]);
+    const [borrowedBooks, setBorrowedBooks] = useState<BorrowedBookView[]>([]);
     const [recommendations, setRecommendations] = useState<string[] | null>(null);
+    const [allBooks, setAllBooks] = useState<Book[]>([]);
+    const [activeBorrowals, setActiveBorrowals] = useState<Borrowal[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRecoLoading, setIsRecoLoading] = useState(false);
 
+    // Listener for all books
     useEffect(() => {
-        if (!user) {
-            setIsLoading(false);
-            return;
-        };
+        const booksQuery = collection(db, 'books');
+        const unsubscribe = onSnapshot(booksQuery, (snapshot) => {
+            const books = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+            setAllBooks(books);
+        });
+        return () => unsubscribe();
+    }, []);
 
+    // Listener for user's active borrowals
+    useEffect(() => {
+        if (!user) return;
         setIsLoading(true);
+        const borrowalsQuery = query(collection(db, 'borrowals'), where('userId', '==', user.id), where('status', '==', 'borrowed'));
+        const unsubscribe = onSnapshot(borrowalsQuery, (snapshot) => {
+            const borrowals = snapshot.docs.map(d => ({
+                id: d.id,
+                bookId: d.data().bookId,
+                userId: d.data().userId,
+                dueDate: d.data().dueDate.toDate(),
+            } as Borrowal));
+            setActiveBorrowals(borrowals);
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, [user]);
 
-        const bookSubs: Unsubscribe[] = [];
-
-        // 1. Get Currently Borrowed Books
-        if (user.borrowedBooks && user.borrowedBooks.length > 0) {
-            const borrowedBooksQuery = query(collection(db, 'books'), where('__name__', 'in', user.borrowedBooks));
-            const borrowalsQuery = query(collection(db, 'borrowals'), where('userId', '==', user.id), where('status', '==', 'borrowed'));
-
-            const unsubBorrowed = onSnapshot(borrowedBooksQuery, (bookSnapshot) => {
-                const unsubBorrowals = onSnapshot(borrowalsQuery, (borrowalSnapshot) => {
-                     const dueDatesMap = new Map(borrowalSnapshot.docs.map(d => [d.data().bookId, d.data().dueDate.toDate()]));
-                     const books = bookSnapshot.docs.map(doc => ({
-                         id: doc.id,
-                         ...doc.data(),
-                         dueDate: dueDatesMap.get(doc.id) ? format(dueDatesMap.get(doc.id)!, 'PPP') : 'N/A'
-                     } as BorrowedBook));
-                     setBorrowedBooks(books);
-                });
-                bookSubs.push(unsubBorrowals);
-            });
-            bookSubs.push(unsubBorrowed);
-        } else {
+    // Combine data into view model
+    useEffect(() => {
+        if (activeBorrowals.length === 0 && allBooks.length > 0) {
             setBorrowedBooks([]);
+            return;
         }
 
-        // 2. Get Borrowing History Titles (simple for now)
-        const readerRef = doc(db, 'users', user.id);
-        const unsubReader = onSnapshot(readerRef, (doc) => {
-            const readerData = doc.data() as Reader;
-            const allHistoryTitles = [...new Set([...(readerData.borrowingHistory || []), ...(readerData.borrowedBooks || [])])];
-            
-            // This is a simplified version. For a full history, a `history` collection would be better.
-            // Here, we just display titles. We can't easily get full book objects for a large history.
-        });
-        bookSubs.push(unsubReader);
+        const booksMap = new Map(allBooks.map(b => [b.id, b]));
+        const borrowedBookDetails = activeBorrowals
+            .map(borrowal => {
+                const book = booksMap.get(borrowal.bookId);
+                if (book) {
+                    return {
+                        ...book,
+                        dueDate: format(borrowal.dueDate, 'PPP'),
+                    };
+                }
+                return null;
+            })
+            .filter((b): b is BorrowedBookView => b !== null);
 
-
-        setIsLoading(false);
-
-        return () => {
-            bookSubs.forEach(unsub => unsub());
-        };
-
-    }, [user]);
+        setBorrowedBooks(borrowedBookDetails);
+    }, [activeBorrowals, allBooks]);
 
     const generateRecommendations = async () => {
         if (!user) return;
         setIsRecoLoading(true);
+        setRecommendations(null);
+
         try {
-            const readerData = (await getDoc(doc(db, 'users', user.id))).data() as Reader;
-             const historyTitles = [...new Set([...(readerData.borrowingHistory || []), ...(borrowedBooks.map(b => b.title))])]
+            // Get the most up-to-date user data
+            const userDocRef = doc(db, 'users', user.id);
+            const userSnapshot = await getDoc(userDocRef);
+
+            if (!userSnapshot.exists()) {
+                throw new Error("User data not found.");
+            }
+            const readerData = userSnapshot.data() as Reader;
+
+            // Fetch titles for all books they have ever borrowed.
+            const historyIds = [...new Set([...(readerData.borrowingHistory || []), ...(readerData.borrowedBooks || [])])];
+            let historyTitles: string[] = [];
+            
+            if(historyIds.length > 0) {
+                 const historyBooksQuery = query(collection(db, 'books'), where('__name__', 'in', historyIds));
+                 const historyBooksSnapshot = await getDocs(historyBooksQuery);
+                 historyTitles = historyBooksSnapshot.docs.map(doc => doc.data().title);
+            }
+
             const result = await getPersonalizedBookRecommendations({
                 readerId: user.id,
                 borrowingHistory: historyTitles,
-                preferences: '',
+                preferences: '', // Preferences field can be added in the future
             });
             setRecommendations(result.recommendations);
-        } catch (e) {
-            console.error(e);
+        } catch (e: any) {
+            console.error("Failed to generate recommendations:", e);
         } finally {
             setIsRecoLoading(false);
         }
