@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Book, Reader } from "@/lib/types";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, Unsubscribe } from "firebase/firestore";
@@ -18,6 +18,7 @@ import { useAuth } from "@/context/auth-context";
 
 export default function BookDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const bookId = params.id as string;
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
@@ -66,6 +67,14 @@ export default function BookDetailPage() {
         }
     };
   }, [bookId, currentUser]);
+  
+  const handleBorrowClick = () => {
+    if (!currentUser) {
+      router.push('/login');
+    } else {
+      setIsBorrowOpen(true);
+    }
+  };
 
   const handleReturnBook = async () => {
     if (!book) return;
@@ -128,7 +137,7 @@ export default function BookDetailPage() {
   }
 
   const isBorrowable = book.status === 'Available' && book.available > 0;
-  const isReturnable = book.available < book.quantity;
+  const isReturnable = currentUser && (currentUser.role === 'admin' || currentUser.role === 'librarian') && book.available < book.quantity;
   const currentUserRole = currentUser?.role;
 
   return (
@@ -179,28 +188,23 @@ export default function BookDetailPage() {
                 </span>
             </div>
             
-            {/* Action buttons are only rendered if a user is logged in */}
-            {currentUser && (
-                <>
-                    {(currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-                        <div className="flex gap-4 pt-4 border-t">
-                            <Button onClick={() => setIsBorrowOpen(true)} disabled={!isBorrowable} className="flex-1">
-                                <BookCopy className="mr-2" /> Borrow
-                            </Button>
-                            <Button onClick={handleReturnBook} disabled={!isReturnable} variant="outline" className="flex-1">
-                                <Users className="mr-2" /> Return
-                            </Button>
-                        </div>
-                    )}
-                     {currentUserRole === 'reader' && (
-                        <div className="pt-4 border-t">
-                            <Button onClick={() => setIsBorrowOpen(true)} disabled={!isBorrowable} className="w-full">
-                                <BookCopy className="mr-2" /> Borrow This Book
-                            </Button>
-                        </div>
-                    )}
-                </>
-            )}
+            <div className="pt-4 border-t">
+              {isReturnable ? (
+                  <div className="flex gap-4">
+                      <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="flex-1">
+                          <BookCopy className="mr-2" /> Borrow
+                      </Button>
+                      <Button onClick={handleReturnBook} disabled={!isReturnable} variant="outline" className="flex-1">
+                          <Users className="mr-2" /> Return
+                      </Button>
+                  </div>
+              ) : (
+                  <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="w-full">
+                      <BookCopy className="mr-2" /> 
+                      {currentUser ? 'Borrow This Book' : 'Login to Borrow'}
+                  </Button>
+              )}
+            </div>
         </CardContent>
       </Card>
 
@@ -216,3 +220,4 @@ export default function BookDetailPage() {
     </div>
   );
 }
+
