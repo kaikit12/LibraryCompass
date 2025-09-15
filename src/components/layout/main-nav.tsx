@@ -8,7 +8,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem
 } from '@/components/ui/sidebar'
-import { Home, Book, Users, BarChart3 } from 'lucide-react'
+import { Home, Book, Users, BarChart3, BookHeart } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth-context'
@@ -17,7 +17,8 @@ import * as React from 'react'
 
 const mainLinks = [
   { href: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'librarian'] },
-  { href: '/books', label: 'Books', icon: Book, roles: ['admin', 'librarian', 'reader'] },
+  { href: '/books', label: 'Browse Books', icon: Book, roles: ['admin', 'librarian', 'reader'] },
+  { href: '/my-books', label: 'My Books', icon: BookHeart, roles: ['reader'] },
   { href: '/readers', label: 'Readers', icon: Users, roles: ['admin', 'librarian'] },
 ]
 

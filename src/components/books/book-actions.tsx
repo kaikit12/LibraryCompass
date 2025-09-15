@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
@@ -22,6 +23,7 @@ import { QRCodeDialog } from "./qr-code-dialog";
 import { useAuth } from "@/context/auth-context";
 import { PersonalizedRecommendationsDialog } from "./recommendations-dialog";
 import { cn } from "@/lib/utils";
+import { generateBookDescription } from "@/ai/flows/generate-book-description";
 
 
 export function BookActions() {
@@ -41,6 +43,7 @@ export function BookActions() {
   const [isRecoDialogOpen, setIsRecoDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [editingBook, setEditingBook] = useState<Partial<Book> | null>(null);
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
 
   
   useEffect(() => {
@@ -141,6 +144,7 @@ export function BookActions() {
         libraryId: editingBook.libraryId || '',
         lateFeePerDay: lateFee,
         imageUrl: editingBook.imageUrl || '',
+        description: editingBook.description || '',
     };
 
     try {
@@ -171,6 +175,25 @@ export function BookActions() {
     } catch (error) {
        toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete book.'});
     }
+  }
+
+  const handleGenerateDescription = async () => {
+      if (!editingBook?.title || !editingBook?.author) {
+          toast({ variant: 'destructive', title: '❌ Error', description: 'Please enter a title and author first.'});
+          return;
+      }
+      setIsGeneratingDesc(true);
+      try {
+          const result = await generateBookDescription({
+              title: editingBook.title,
+              author: editingBook.author,
+          });
+          setEditingBook(prev => ({...prev, description: result.description}));
+      } catch (error) {
+           toast({ variant: 'destructive', title: '❌ AI Error', description: 'Could not generate a description.'});
+      } finally {
+          setIsGeneratingDesc(false);
+      }
   }
 
   const handleOpenBorrow = (book: Book) => {
@@ -416,7 +439,7 @@ export function BookActions() {
 
         {/* Add/Edit Dialog */}
         <Dialog open={isAddEditOpen} onOpenChange={(open) => !open && resetDialogState()}>
-          <DialogContent className="sm:max-w-[480px] max-h-[90vh] flex flex-col">
+          <DialogContent className="sm:max-w-[580px] max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingBook?.id ? 'Edit Book' : 'Add New Book'}</DialogTitle>
               <DialogDescription>
@@ -431,6 +454,16 @@ export function BookActions() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="author" className="text-right">Author</Label>
                 <Input id="author" value={editingBook?.author || ''} onChange={e => setEditingBook({...editingBook, author: e.target.value})} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="description" className="text-right pt-2">Description</Label>
+                  <div className="col-span-3 space-y-2">
+                      <Textarea id="description" value={editingBook?.description || ''} onChange={e => setEditingBook(prev => ({...prev, description: e.target.value }))} placeholder="A brief summary of the book..." />
+                      <Button variant="outline" size="sm" onClick={handleGenerateDescription} disabled={isGeneratingDesc || !editingBook?.title || !editingBook?.author}>
+                          {isGeneratingDesc ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                          Generate with AI
+                      </Button>
+                  </div>
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="libraryId" className="text-right">Library ID</Label>

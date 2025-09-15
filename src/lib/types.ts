@@ -11,6 +11,7 @@ export interface Book {
   libraryId?: string; // Custom ID for library management
   lateFeePerDay?: number;
   imageUrl?: string;
+  description?: string;
 }
 
 export interface Reader {
