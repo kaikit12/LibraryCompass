@@ -52,7 +52,9 @@ export default function BookDetailPage() {
     } else {
         // If the user is a reader, they don't need the full list.
         // We just create a list containing only them to pass to the borrow dialog.
-        setReaders([currentUser]);
+        if (currentUser) {
+            setReaders([currentUser]);
+        }
     }
 
     return () => {
@@ -141,11 +143,10 @@ export default function BookDetailPage() {
       <Card>
         {book.imageUrl && (
             <div className="relative h-64 w-full">
-                <Image
+                <img
                     src={book.imageUrl}
                     alt={`Cover of ${book.title}`}
-                    fill
-                    className="object-cover rounded-t-lg"
+                    className="object-cover w-full h-full rounded-t-lg"
                 />
             </div>
         )}
