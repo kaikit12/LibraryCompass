@@ -467,14 +467,14 @@ export function BookActions() {
 
         {/* Add/Edit Dialog */}
         <Dialog open={isAddEditOpen} onOpenChange={(open) => !open && resetDialogState()}>
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent className="sm:max-w-[480px] max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingBook?.id ? 'Edit Book' : 'Add New Book'}</DialogTitle>
               <DialogDescription>
                 {editingBook?.id ? 'Update the details of this book.' : 'Enter the details for the new book.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 overflow-y-auto px-1">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="title" className="text-right">Title</Label>
                 <Input id="title" value={editingBook?.title || ''} onChange={e => setEditingBook({...editingBook, title: e.target.value})} className="col-span-3" />
@@ -524,7 +524,7 @@ export function BookActions() {
                     </div>
                 </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="mt-auto pt-4 border-t">
               <Button type="button" variant="secondary" onClick={resetDialogState}>Cancel</Button>
               <Button type="submit" onClick={handleSaveBook} disabled={uploadProgress !== null && uploadProgress < 100}>
                 {uploadProgress !== null && uploadProgress < 100 ? <UploadCloud className="mr-2 animate-pulse" /> : null}
@@ -561,3 +561,5 @@ export function BookActions() {
     </Card>
   );
 }
+
+    
