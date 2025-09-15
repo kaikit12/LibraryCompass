@@ -10,6 +10,7 @@ import { differenceInDays, format, isPast } from 'date-fns';
 import { Bell } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { createNotification } from '@/lib/notifications';
 
 interface OverdueEntry {
   userId: string;
@@ -82,23 +83,13 @@ export default function OverdueBooks() {
           });
           return;
       }
+      
       try {
-        const response = await fetch('/api/notifications', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                action: 'create-notification',
-                userId: entry.userId,
-                message: `Your borrowed book "${entry.bookTitle}" is ${entry.daysOverdue} days overdue. Please return it as soon as possible.`,
-                type: 'warning'
-            }),
+        await createNotification(entry.userId, {
+            message: `Your borrowed book "${entry.bookTitle}" is ${entry.daysOverdue} days overdue. Please return it as soon as possible.`,
+            type: 'warning'
         });
-
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to send notification.');
-        }
-
+        
         toast({
             title: '✅ Reminder Sent',
             description: `A notification has been sent to ${entry.userName}.`,
