@@ -4,6 +4,9 @@ import CurrentlyBorrowedBooks from '@/components/dashboard/currently-borrowed-bo
 import { GenreDistributionChart } from '@/components/dashboard/genre-distribution-chart';
 import { BorrowingTrendsChart } from '@/components/dashboard/borrowing-trends-chart';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
+import { VisuallyHidden } from '@/components/ui/visually-hidden';
+
 
 export default async function DashboardPage() {
   
@@ -42,6 +45,26 @@ export default async function DashboardPage() {
       <OverdueBooks />
 
       <CurrentlyBorrowedBooks />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Example Dialog</CardTitle>
+          <CardDescription>An example of an accessible dialog with a visually hidden title.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Dialog>
+            <DialogTrigger asChild>
+              <button className="bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 rounded-md">Open</button>
+            </DialogTrigger>
+            <DialogContent>
+              <VisuallyHidden>
+                <DialogTitle>Dialog Title</DialogTitle>
+              </VisuallyHidden>
+              <p>This is the content of the dialog.</p>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
     </div>
   );
 }
