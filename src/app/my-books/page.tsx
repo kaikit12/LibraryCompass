@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Unsubscribe, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Unsubscribe, doc, getDoc } from 'firebase/firestore';
 import { Book, Reader, Notification, Transaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { getPersonalizedBookRecommendations, PersonalizedBookRecommendationsOutput } from '@/ai/flows/personalized-book-recommendations';
