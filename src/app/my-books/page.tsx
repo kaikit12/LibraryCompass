@@ -101,10 +101,13 @@ export default function MyBooksPage() {
             const readerData = userSnapshot.data() as Reader;
 
             // Fetch titles for all books they have ever borrowed.
+            // borrowingHistory and borrowedBooks store IDs. We need to fetch titles.
             const historyIds = [...new Set([...(readerData.borrowingHistory || []), ...(readerData.borrowedBooks || [])])];
             let historyTitles: string[] = [];
             
             if(historyIds.length > 0) {
+                 // Firestore 'in' query is limited to 30 elements. Chunk if necessary.
+                 // For this app, assuming a user's history won't exceed this is acceptable.
                  const historyBooksQuery = query(collection(db, 'books'), where('__name__', 'in', historyIds));
                  const historyBooksSnapshot = await getDocs(historyBooksQuery);
                  historyTitles = historyBooksSnapshot.docs.map(doc => doc.data().title);

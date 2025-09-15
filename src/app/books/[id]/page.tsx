@@ -137,7 +137,8 @@ export default function BookDetailPage() {
   }
 
   const isBorrowable = book.status === 'Available' && book.available > 0;
-  const isReturnable = currentUser && (currentUser.role === 'admin' || currentUser.role === 'librarian') && book.available < book.quantity;
+  const showReturnButton = currentUser && (currentUser.role === 'admin' || currentUser.role === 'librarian');
+  const isReturnable = showReturnButton && book.available < book.quantity;
   const currentUserRole = currentUser?.role;
 
   return (
@@ -189,7 +190,7 @@ export default function BookDetailPage() {
             </div>
             
             <div className="pt-4 border-t">
-              {isReturnable ? (
+              {showReturnButton ? (
                   <div className="flex gap-4">
                       <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="flex-1">
                           <BookCopy className="mr-2" /> Borrow
