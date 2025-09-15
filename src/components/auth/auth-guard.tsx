@@ -7,9 +7,6 @@ import { useEffect } from "react";
 import { Skeleton } from "../ui/skeleton";
 
 const authRoutes = ["/login", "/register"];
-const publicRoutePatterns = [
-    /^\/books\/[a-zA-Z0-9]+$/, // Matches /books/{id}
-];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -17,13 +14,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const isAuthRoute = authRoutes.includes(pathname);
-  const isPublicPatternRoute = publicRoutePatterns.some(pattern => pattern.test(pathname));
 
   useEffect(() => {
-    // This effect handles redirection logic ONLY for protected routes and auth routes.
-    // It deliberately ignores public pattern routes.
-    if (loading || isPublicPatternRoute) {
-      return; // Do nothing if loading or on a public page like /books/[id]
+    if (loading) {
+      return; // Do nothing while loading
     }
 
     const isProtectedRoute = !isAuthRoute;
@@ -41,16 +35,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         router.push("/");
       }
     }
-  }, [user, loading, router, pathname, isAuthRoute, isPublicPatternRoute]);
+  }, [user, loading, router, pathname, isAuthRoute]);
 
-  // --- Render Logic ---
 
-  // 1. If it's a public pattern route, render it immediately. No loading skeletons.
-  if (isPublicPatternRoute) {
-    return <>{children}</>;
-  }
-
-  // 2. While loading, or if a redirect is about to happen for a protected/auth route, show a skeleton.
+  // While loading, or if a redirect is about to happen, show a skeleton.
   if (loading || (!user && !isAuthRoute) || (user && isAuthRoute)) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
@@ -63,6 +51,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // 3. If everything is fine (e.g., user is logged in on a protected route), render the children.
+  // If everything is fine, render the children.
   return <>{children}</>;
 }
