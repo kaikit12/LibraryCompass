@@ -11,7 +11,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import Image from "next/image";
 
 interface QRCodeDialogProps {
   book: Book | null;
@@ -54,12 +53,12 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
              <Skeleton className="h-[180px] w-[180px] rounded-md" />
           ) : (
             book?.imageUrl && (
-                <Image
+                <img
                     src={book.imageUrl}
                     alt={`Cover of ${book.title}`}
                     width={180}
                     height={180}
-                    className="rounded-md object-cover"
+                    className="rounded-md object-cover w-[180px] h-[180px]"
                 />
             )
           )}
