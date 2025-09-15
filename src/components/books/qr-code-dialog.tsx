@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -43,9 +44,9 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-xs">
         <DialogHeader>
-          <DialogTitle>Mã QR Sách: {book?.title}</DialogTitle>
+          <DialogTitle>Book QR Code: {book?.title}</DialogTitle>
           <DialogDescription>
-            Quét để xem chi tiết và mượn/trả sách.
+            Scan to view details and borrow/return the book.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center p-4 gap-4">
@@ -83,7 +84,7 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
               )}
             </>
           )}
-           <p className="text-sm text-muted-foreground">Quét để xem chi tiết sách</p>
+           <p className="text-sm text-muted-foreground">Scan to see book details</p>
         </div>
       </DialogContent>
     </Dialog>
