@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -29,7 +30,7 @@ export default function BookDetailPage() {
   const [isBorrowOpen, setIsBorrowOpen] = useState(false);
   
   useEffect(() => {
-    if (!bookId || !currentUser) return;
+    if (!bookId) return;
     setLoading(true);
     const bookRef = doc(db, "books", bookId);
     const unsubscribeBook = onSnapshot(bookRef, (doc) => {
@@ -43,18 +44,20 @@ export default function BookDetailPage() {
 
     let unsubscribeReaders: Unsubscribe | undefined;
 
-    if (currentUser.role === 'admin' || currentUser.role === 'librarian') {
-        unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
-            const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
-            setReaders(liveReaders);
-        });
-    } else {
-        // If the user is a reader, they don't need the full list.
-        // We just create a list containing only them to pass to the borrow dialog.
-        if (currentUser) {
+    // Only fetch readers if a user is logged in
+    if (currentUser) {
+        if (currentUser.role === 'admin' || currentUser.role === 'librarian') {
+            unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
+                const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+                setReaders(liveReaders);
+            });
+        } else {
+            // If the user is a reader, they don't need the full list.
+            // We just create a list containing only them to pass to the borrow dialog.
             setReaders([currentUser]);
         }
     }
+
 
     return () => {
         unsubscribeBook();
@@ -176,32 +179,40 @@ export default function BookDetailPage() {
                 </span>
             </div>
             
-            {(currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-                <div className="flex gap-4 pt-4 border-t">
-                    <Button onClick={() => setIsBorrowOpen(true)} disabled={!isBorrowable} className="flex-1">
-                        <BookCopy className="mr-2" /> Borrow
-                    </Button>
-                    <Button onClick={handleReturnBook} disabled={!isReturnable} variant="outline" className="flex-1">
-                        <Users className="mr-2" /> Return
-                    </Button>
-                </div>
-            )}
-             {currentUserRole === 'reader' && (
-                <div className="pt-4 border-t">
-                    <Button onClick={() => setIsBorrowOpen(true)} disabled={!isBorrowable} className="w-full">
-                        <BookCopy className="mr-2" /> Borrow This Book
-                    </Button>
-                </div>
+            {/* Action buttons are only rendered if a user is logged in */}
+            {currentUser && (
+                <>
+                    {(currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+                        <div className="flex gap-4 pt-4 border-t">
+                            <Button onClick={() => setIsBorrowOpen(true)} disabled={!isBorrowable} className="flex-1">
+                                <BookCopy className="mr-2" /> Borrow
+                            </Button>
+                            <Button onClick={handleReturnBook} disabled={!isReturnable} variant="outline" className="flex-1">
+                                <Users className="mr-2" /> Return
+                            </Button>
+                        </div>
+                    )}
+                     {currentUserRole === 'reader' && (
+                        <div className="pt-4 border-t">
+                            <Button onClick={() => setIsBorrowOpen(true)} disabled={!isBorrowable} className="w-full">
+                                <BookCopy className="mr-2" /> Borrow This Book
+                            </Button>
+                        </div>
+                    )}
+                </>
             )}
         </CardContent>
       </Card>
 
-      <BorrowDialog
-        book={book}
-        readers={readers}
-        isOpen={isBorrowOpen}
-        setIsOpen={setIsBorrowOpen}
-      />
+      {/* The BorrowDialog is only mounted if there is a logged-in user, as it requires user context */}
+      {currentUser && (
+        <BorrowDialog
+            book={book}
+            readers={readers}
+            isOpen={isBorrowOpen}
+            setIsOpen={setIsBorrowOpen}
+        />
+      )}
     </div>
   );
 }

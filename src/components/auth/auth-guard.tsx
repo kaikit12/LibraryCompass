@@ -7,6 +7,9 @@ import { useEffect } from "react";
 import { Skeleton } from "../ui/skeleton";
 
 const publicRoutes = ["/login", "/register"];
+const publicRoutePatterns = [
+    /^\/books\/[a-zA-Z0-9]+$/, // Matches /books/{id}
+]
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -16,15 +19,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return; // Wait for loading to finish
 
-    const isPublicRoute = publicRoutes.includes(pathname);
+    const isPublicRoute = publicRoutes.includes(pathname) || publicRoutePatterns.some(pattern => pattern.test(pathname));
 
     // If the user is not logged in and is trying to access a protected route, redirect to login.
     if (!user && !isPublicRoute) {
       router.push("/login");
     } 
     
-    // If the user is logged in and is on a public route, redirect them to the appropriate page.
-    else if (user && isPublicRoute) {
+    // If the user is logged in and is on a public route (excluding book details), redirect them to the appropriate page.
+    else if (user && publicRoutes.includes(pathname)) {
       if (user.role === 'reader') {
         router.push("/books");
       } else {
@@ -34,7 +37,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [user, loading, router, pathname]);
 
   // While loading, or if we are about to redirect, show a loading skeleton.
-  if (loading || (!user && !publicRoutes.includes(pathname)) || (user && publicRoutes.includes(pathname))) {
+  const isPublicRouteCheck = publicRoutes.includes(pathname) || publicRoutePatterns.some(pattern => pattern.test(pathname));
+  if (loading || (!user && !isPublicRouteCheck) || (user && publicRoutes.includes(pathname))) {
     return (
         <div className="flex h-screen w-screen items-center justify-center">
             <div className="space-y-4 p-8">
