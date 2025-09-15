@@ -21,7 +21,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const isAuthRoute = authRoutes.includes(pathname);
     const isPublicPatternRoute = publicRoutePatterns.some(pattern => pattern.test(pathname));
-    const isProtectedRoute = !isAuthRoute && !isPublicPatternRoute;
+
+    // If it's a public pattern route, don't do anything. Let the page render.
+    if (isPublicPatternRoute) {
+        return;
+    }
+
+    const isProtectedRoute = !isAuthRoute;
 
     // If the user is not logged in and is trying to access a protected route, redirect to login.
     if (!user && isProtectedRoute) {
@@ -40,7 +46,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const isAuthRoute = authRoutes.includes(pathname);
   const isPublicPatternRoute = publicRoutePatterns.some(pattern => pattern.test(pathname));
-  const isProtectedRoute = !isAuthRoute && !isPublicPatternRoute;
+  
+  // If it's a public route, don't show loading skeleton, just render the children
+  if (isPublicPatternRoute) {
+      return <>{children}</>;
+  }
+  
+  const isProtectedRoute = !isAuthRoute;
 
   // While loading, or if we are about to redirect, show a loading skeleton.
   if (loading || (!user && isProtectedRoute) || (user && isAuthRoute)) {
