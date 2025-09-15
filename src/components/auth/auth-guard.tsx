@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Skeleton } from "../ui/skeleton";
 
-const publicRoutes = ["/login", "/register"];
+const authRoutes = ["/login", "/register"];
 const publicRoutePatterns = [
     /^\/books\/[a-zA-Z0-9]+$/, // Matches /books/{id}
 ]
@@ -19,26 +19,31 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return; // Wait for loading to finish
 
-    const isPublicRoute = publicRoutes.includes(pathname) || publicRoutePatterns.some(pattern => pattern.test(pathname));
+    const isAuthRoute = authRoutes.includes(pathname);
+    const isPublicPatternRoute = publicRoutePatterns.some(pattern => pattern.test(pathname));
+    const isProtectedRoute = !isAuthRoute && !isPublicPatternRoute;
 
     // If the user is not logged in and is trying to access a protected route, redirect to login.
-    if (!user && !isPublicRoute) {
+    if (!user && isProtectedRoute) {
       router.push("/login");
     } 
     
-    // If the user is logged in and is on a public route (excluding book details), redirect them to the appropriate page.
-    else if (user && publicRoutes.includes(pathname)) {
+    // If the user is logged in and is on an auth route (/login, /register), redirect them to the appropriate page.
+    else if (user && isAuthRoute) {
       if (user.role === 'reader') {
-        router.push("/books");
+        router.push("/my-books");
       } else {
         router.push("/");
       }
     }
   }, [user, loading, router, pathname]);
 
+  const isAuthRoute = authRoutes.includes(pathname);
+  const isPublicPatternRoute = publicRoutePatterns.some(pattern => pattern.test(pathname));
+  const isProtectedRoute = !isAuthRoute && !isPublicPatternRoute;
+
   // While loading, or if we are about to redirect, show a loading skeleton.
-  const isPublicRouteCheck = publicRoutes.includes(pathname) || publicRoutePatterns.some(pattern => pattern.test(pathname));
-  if (loading || (!user && !isPublicRouteCheck) || (user && publicRoutes.includes(pathname))) {
+  if (loading || (!user && isProtectedRoute) || (user && isAuthRoute)) {
     return (
         <div className="flex h-screen w-screen items-center justify-center">
             <div className="space-y-4 p-8">
