@@ -56,7 +56,7 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
             </>
           ) : (
             <>
-              {book?.imageUrl && (
+              {book?.imageUrl ? (
                   <img
                       src={book.imageUrl}
                       alt={`Cover of ${book.title}`}
@@ -64,6 +64,10 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
                       height={180}
                       className="rounded-md object-cover w-[180px] h-[180px]"
                   />
+              ) : (
+                <div className="h-[180px] w-[180px] bg-muted rounded-md flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">No Image</p>
+                </div>
               )}
               {bookUrl && (
                 <div className="p-2 bg-white rounded-md">
