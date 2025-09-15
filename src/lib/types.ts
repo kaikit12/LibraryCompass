@@ -34,3 +34,13 @@ export interface Notification {
     createdAt: any; // Firestore Timestamp
     isRead: boolean;
 }
+
+export interface Transaction {
+    id: string;
+    userId: string;
+    bookId: string;
+    borrowalId: string;
+    amount: number;
+    type: 'late_fee' | 'payment';
+    createdAt: any; // Firestore Timestamp
+}

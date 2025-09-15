@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, increment, arrayRemove, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, runTransaction, increment, arrayRemove, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { differenceInDays } from 'date-fns';
 import { createNotification } from '@/lib/notifications';
 
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     let lateFee = 0;
     let daysLate = 0;
     let bookTitle = '';
+    let transactionId: string | null = null;
 
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
@@ -74,6 +75,17 @@ export async function POST(request: Request) {
         };
         if (lateFee > 0) {
             userUpdate.lateFees = increment(lateFee);
+            
+            const transactionRef = doc(collection(db, 'transactions'));
+            transactionId = transactionRef.id;
+            transaction.set(transactionRef, {
+              userId,
+              bookId,
+              borrowalId: borrowalDoc.id,
+              amount: lateFee,
+              type: 'late_fee',
+              createdAt: new Date(),
+            });
         }
         transaction.update(userRef, userUpdate);
 

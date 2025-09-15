@@ -35,15 +35,9 @@ export default function StatsCards({ }: StatsCardsProps) {
        setBorrowedBooksCount(borrowed);
     });
 
-    // This subscription updates total readers and late fees
+    // This subscription updates total readers
     const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
-      let fees = 0;
-      snapshot.forEach(doc => {
-        const reader = doc.data() as Reader;
-        fees += reader.lateFees || 0;
-      });
       setTotalReaders(snapshot.size);
-      setLateFeeRevenue(fees);
     });
     
     // This subscription handles all time-based stats by listening to the `borrowals` collection
@@ -83,11 +77,22 @@ export default function StatsCards({ }: StatsCardsProps) {
         setOverdueCount(overdueCountValue);
     });
     
+    // This subscription calculates total late fee revenue from the `transactions` collection
+    const transactionsColRef = query(collection(db, "transactions"), where("type", "==", "late_fee"));
+    const unsubscribeTransactions = onSnapshot(transactionsColRef, (snapshot) => {
+        let totalRevenue = 0;
+        snapshot.forEach(doc => {
+            totalRevenue += doc.data().amount || 0;
+        });
+        setLateFeeRevenue(totalRevenue);
+    });
+
     // Cleanup all subscriptions on component unmount
     return () => {
         unsubscribeBooks();
         unsubscribeReaders();
         unsubscribeBorrowals();
+        unsubscribeTransactions();
     };
   }, []);
   
