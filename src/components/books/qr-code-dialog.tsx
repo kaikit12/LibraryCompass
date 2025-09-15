@@ -50,33 +50,34 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
         </DialogHeader>
         <div className="flex flex-col items-center justify-center p-4 gap-4">
           {isLoading ? (
-             <Skeleton className="h-[180px] w-[180px] rounded-md" />
+            <>
+              <Skeleton className="h-[180px] w-[180px] rounded-md" />
+              <Skeleton className="h-[160px] w-[160px]" />
+            </>
           ) : (
-            book?.imageUrl && (
-                <img
-                    src={book.imageUrl}
-                    alt={`Cover of ${book.title}`}
-                    width={180}
-                    height={180}
-                    className="rounded-md object-cover w-[180px] h-[180px]"
-                />
-            )
-          )}
-          {isLoading ? (
-            <Skeleton className="h-[160px] w-[160px]" />
-          ) : (
-            bookUrl && (
-              <div className="p-2 bg-white rounded-md">
-                <QRCode
-                  value={bookUrl}
-                  size={160}
-                  bgColor={"#ffffff"}
-                  fgColor={"#000000"}
-                  level={"L"}
-                  includeMargin={true}
-                />
-              </div>
-            )
+            <>
+              {book?.imageUrl && (
+                  <img
+                      src={book.imageUrl}
+                      alt={`Cover of ${book.title}`}
+                      width={180}
+                      height={180}
+                      className="rounded-md object-cover w-[180px] h-[180px]"
+                  />
+              )}
+              {bookUrl && (
+                <div className="p-2 bg-white rounded-md">
+                  <QRCode
+                    value={bookUrl}
+                    size={160}
+                    bgColor={"#ffffff"}
+                    fgColor={"#000000"}
+                    level={"L"}
+                    includeMargin={true}
+                  />
+                </div>
+              )}
+            </>
           )}
            <p className="text-sm text-muted-foreground">Quét để xem chi tiết sách</p>
         </div>
