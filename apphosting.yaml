@@ -1,0 +1,10 @@
+# The runtime to use for your app.
+runtime: nodejs20
+
+# The command to build your app.
+build:
+  - npm install
+  - npm run build
+
+# The command to run your app.
+run: npm run start
