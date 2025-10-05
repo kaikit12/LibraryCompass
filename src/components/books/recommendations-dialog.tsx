@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import type { Reader } from "@/lib/types";
-import { groqChat } from "@/ai/flows/groq-chat";
+import { groqChat } from "@/app/actions/groq-chat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

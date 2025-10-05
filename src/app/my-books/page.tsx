@@ -6,7 +6,7 @@ import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Unsubscribe, doc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { Book, Reader } from '@/lib/types';
-import { groqChat } from '@/ai/flows/groq-chat';
+import { groqChat } from '@/app/actions/groq-chat';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, BookOpen, Sparkles, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';

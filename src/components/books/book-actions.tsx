@@ -24,7 +24,7 @@ import { QRCodeDialog } from "./qr-code-dialog";
 import { useAuth } from "@/context/auth-context";
 import { PersonalizedRecommendationsDialog } from "./recommendations-dialog";
 import { cn } from "@/lib/utils";
-import { groqChat } from "@/ai/flows/groq-chat";
+import { groqChat } from "@/app/actions/groq-chat";
 
 
 export function BookActions() {
