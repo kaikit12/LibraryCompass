@@ -16,7 +16,7 @@ let db: Firestore | null = null;
 let auth: Auth | null = null;
 
 // Conditionally initialize Firebase only if the API key is provided.
-// This prevents the app from crashing if the .env.local file is not configured.
+// This prevents the app from crashing if the .env file is not configured.
 if (firebaseConfig.apiKey) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     db = getFirestore(app);

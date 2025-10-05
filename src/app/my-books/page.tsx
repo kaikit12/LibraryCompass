@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Unsubscribe, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Unsubscribe, doc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { Book, Reader } from '@/lib/types';
 import { getPersonalizedBookRecommendations } from '@/ai/flows/personalized-book-recommendations';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -35,6 +35,7 @@ export default function MyBooksPage() {
 
     // Listener for all books
     useEffect(() => {
+        if (!db) return;
         const booksQuery = collection(db, 'books');
         const unsubscribe = onSnapshot(booksQuery, (snapshot) => {
             const books = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
@@ -45,7 +46,7 @@ export default function MyBooksPage() {
 
     // Listener for user's active borrowals
     useEffect(() => {
-        if (!user) return;
+        if (!user || !db) return;
         setIsLoading(true);
         const borrowalsQuery = query(collection(db, 'borrowals'), where('userId', '==', user.id), where('status', '==', 'borrowed'));
         const unsubscribe = onSnapshot(borrowalsQuery, (snapshot) => {
@@ -56,6 +57,8 @@ export default function MyBooksPage() {
                 dueDate: d.data().dueDate.toDate(),
             } as Borrowal));
             setActiveBorrowals(borrowals);
+            setIsLoading(false);
+        }, () => {
             setIsLoading(false);
         });
         return () => unsubscribe();
@@ -85,13 +88,12 @@ export default function MyBooksPage() {
         setBorrowedBooks(borrowedBookDetails);
     }, [activeBorrowals, allBooks]);
 
-    const generateRecommendations = async () => {
-        if (!user) return;
+    const generateRecommendations = useCallback(async () => {
+        if (!user || !db) return;
         setIsRecoLoading(true);
         setRecommendations(null);
 
         try {
-            // Get the most up-to-date user data
             const userDocRef = doc(db, 'users', user.id);
             const userSnapshot = await getDoc(userDocRef);
 
@@ -100,31 +102,29 @@ export default function MyBooksPage() {
             }
             const readerData = userSnapshot.data() as Reader;
 
-            // Fetch titles for all books they have ever borrowed.
-            // borrowingHistory and borrowedBooks store IDs. We need to fetch titles.
-            const historyIds = [...new Set([...(readerData.borrowingHistory || []), ...(readerData.borrowedBooks || [])])];
-            let historyTitles: string[] = [];
+            // Firestore 'in' query is limited to 30 elements.
+            const historyIds = [...new Set([...(readerData.borrowingHistory || []), ...(readerData.borrowedBooks || [])])].slice(0, 30);
             
-            if(historyIds.length > 0) {
-                 // Firestore 'in' query is limited to 30 elements. Chunk if necessary.
-                 // For this app, assuming a user's history won't exceed this is acceptable.
-                 const historyBooksQuery = query(collection(db, 'books'), where('__name__', 'in', historyIds));
-                 const historyBooksSnapshot = await getDocs(historyBooksQuery);
-                 historyTitles = historyBooksSnapshot.docs.map(doc => doc.data().title);
+            let historyTitles: string[] = [];
+            if (historyIds.length > 0) {
+                const historyBooksQuery = query(collection(db, 'books'), where('__name__', 'in', historyIds));
+                const historyBooksSnapshot = await getDocs(historyBooksQuery);
+                historyTitles = historyBooksSnapshot.docs.map(doc => doc.data().title);
             }
 
             const result = await getPersonalizedBookRecommendations({
                 readerId: user.id,
                 borrowingHistory: historyTitles,
-                preferences: '', // Preferences field can be added in the future
+                preferences: '',
             });
             setRecommendations(result.recommendations);
         } catch (e: any) {
             console.error("Failed to generate recommendations:", e);
+            setRecommendations([]);
         } finally {
             setIsRecoLoading(false);
         }
-    }
+    }, [user]);
     
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -208,11 +208,21 @@ export default function MyBooksPage() {
                                 <p className="mt-2">Thinking of some great books for you...</p>
                             </div>
                         ): recommendations ? (
-                             <ul className="space-y-2 list-disc list-inside w-full">
-                                {recommendations.map((rec, i) => (
-                                    <li key={i}>{rec}</li>
-                                ))}
-                            </ul>
+                            recommendations.length > 0 ? (
+                                <ul className="space-y-2 list-disc list-inside w-full">
+                                    {recommendations.map((rec, i) => (
+                                        <li key={i}>{rec}</li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className="text-center">
+                                    <p className="text-muted-foreground mb-4">We couldn't generate recommendations at this time. Try again later.</p>
+                                    <Button onClick={generateRecommendations}>
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        Try Again
+                                    </Button>
+                                </div>
+                            )
                         ) : (
                             <div className="text-center">
                                 <p className="text-muted-foreground mb-4">Click the button to get some new reading ideas!</p>
