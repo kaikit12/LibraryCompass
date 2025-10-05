@@ -1,7 +1,7 @@
 import {genkit} from 'genkit';
-import {groq} from '@genkit-ai/groq';
+import {googleAI} from '@genkit-ai/google-genai';
 
 export const ai = genkit({
-  plugins: [groq()],
-  model: 'groq/llama3-8b-8192',
+  plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
+  model: 'googleai/gemini-1.5-flash-latest',
 });
