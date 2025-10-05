@@ -28,7 +28,7 @@ export async function groqChat(input: GroqChatInput): Promise<GroqChatOutput> {
         },
       ],
       // Use a more powerful model by default, falling back to the previous one.
-      model: input.model || 'mixtral-8x7b-32768',
+      model: input.model || 'llama-3.3-70b-versatile',
     });
 
     const content = chatCompletion.choices[0]?.message?.content || '';
