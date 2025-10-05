@@ -1,7 +1,8 @@
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 
+// Genkit initialization without plugins.
+// We will use custom flows to interact with AI services like Groq.
 export const ai = genkit({
-  plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
-  model: 'googleai/gemini-1.5-flash-latest',
+  // No default model or plugins configured here.
+  // Flows will define their own logic for calling AI models.
 });
