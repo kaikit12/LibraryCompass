@@ -2,9 +2,8 @@
 
 import Groq from 'groq-sdk';
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+// Initialize the Groq client. It will automatically pick up the GROQ_API_KEY from the environment variables.
+const groq = new Groq();
 
 interface GroqChatInput {
   prompt: string;
@@ -28,7 +27,8 @@ export async function groqChat(input: GroqChatInput): Promise<GroqChatOutput> {
           content: input.prompt,
         },
       ],
-      model: input.model || 'llama3-8b-8192',
+      // Use a more powerful model by default, falling back to the previous one.
+      model: input.model || 'llama3-70b-8192',
     });
 
     const content = chatCompletion.choices[0]?.message?.content || '';
