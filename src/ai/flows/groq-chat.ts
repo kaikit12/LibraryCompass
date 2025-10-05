@@ -15,13 +15,13 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-export const GroqChatInputSchema = z.object({
+const GroqChatInputSchema = z.object({
   prompt: z.string().describe('The user prompt for the chat model.'),
   model: z.string().optional().default('llama3-8b-8192').describe('The Groq model to use.'),
 });
 export type GroqChatInput = z.infer<typeof GroqChatInputSchema>;
 
-export const GroqChatOutputSchema = z.object({
+const GroqChatOutputSchema = z.object({
   content: z.string().describe('The response from the Groq model.'),
 });
 export type GroqChatOutput = z.infer<typeof GroqChatOutputSchema>;
