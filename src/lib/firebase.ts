@@ -1,8 +1,6 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, onSnapshot } from 'firebase/firestore';
-import { getAuth } from "firebase/auth";
-import { getStorage } from "firebase/storage";
-
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getFirestore, onSnapshot, type Firestore } from 'firebase/firestore';
+import { getAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,12 +11,19 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
-const auth = getAuth(app);
-// Storage is not used in this version to support Firestore Spark plan
-// const storage = getStorage(app);
+let app: FirebaseApp | null = null;
+let db: Firestore | null = null;
+let auth: Auth | null = null;
 
+// Conditionally initialize Firebase only if the API key is provided.
+// This prevents the app from crashing if the .env.local file is not configured.
+if (firebaseConfig.apiKey) {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    db = getFirestore(app);
+    auth = getAuth(app);
+} else {
+    console.warn("Firebase configuration is missing. Firebase features will be disabled.");
+}
 
+// The onSnapshot export is not tied to the initialization
 export { db, auth, onSnapshot };

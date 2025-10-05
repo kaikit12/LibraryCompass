@@ -30,8 +30,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
 
     useEffect(() => {
+        if (!auth) {
+            setLoading(false);
+            // If Firebase is not configured, don't attempt to use auth.
+            // You might want to show a message to the user here.
+            return;
+        }
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
+            if (firebaseUser && db) {
                 // User is signed in, get their data from Firestore from 'users' collection
                 const userRef = doc(db, 'users', firebaseUser.uid);
                 const docSnap = await getDoc(userRef);
@@ -53,10 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const login = (email: string, pass: string) => {
+        if (!auth) return Promise.reject(new Error("Firebase is not configured."));
         return signInWithEmailAndPassword(auth, email, pass);
     };
 
     const register = async (name: string, email: string, pass:string) => {
+        if (!auth || !db) return Promise.reject(new Error("Firebase is not configured."));
+
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const firebaseUser = userCredential.user;
         
@@ -76,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     const logout = async () => {
+        if (!auth) return;
         await signOut(auth);
         router.push('/login');
     };
