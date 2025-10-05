@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -23,7 +24,7 @@ import { QRCodeDialog } from "./qr-code-dialog";
 import { useAuth } from "@/context/auth-context";
 import { PersonalizedRecommendationsDialog } from "./recommendations-dialog";
 import { cn } from "@/lib/utils";
-import { generateBookDescription } from "@/ai/flows/generate-book-description";
+import { groqChat } from "@/ai/flows/groq-chat";
 
 
 export function BookActions() {
@@ -182,11 +183,9 @@ export function BookActions() {
       }
       setIsGeneratingDesc(true);
       try {
-          const result = await generateBookDescription({
-              title: editingBook.title,
-              author: editingBook.author,
-          });
-          setEditingBook(prev => ({...prev, description: result.description}));
+          const prompt = `Write a brief, one-paragraph summary for the book "${editingBook.title}" by ${editingBook.author}.`;
+          const result = await groqChat({ prompt });
+          setEditingBook(prev => ({...prev, description: result.content}));
       } catch (error) {
            toast({ variant: 'destructive', title: '❌ AI Error', description: 'Could not generate a description.'});
       } finally {

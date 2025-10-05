@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import type { Reader } from "@/lib/types";
-import { getPersonalizedBookRecommendations } from "@/ai/flows/personalized-book-recommendations";
+import { groqChat } from "@/ai/flows/groq-chat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -63,13 +63,13 @@ export function PersonalizedRecommendationsDialog({ readers, isOpen, setIsOpen }
         setIsLoading(true);
         setRecommendations(null);
         try {
-            const result = await getPersonalizedBookRecommendations({
-                readerId: selectedReader.id,
-                // The enriched `borrowingHistory` on the reader object now contains titles
-                borrowingHistory: selectedReader.borrowingHistory || [],
-                preferences: preferences,
-            });
-            setRecommendations(result.recommendations);
+            const history = selectedReader.borrowingHistory || [];
+            const prompt = `Based on this reading history: ${history.join(', ')} and these preferences: "${preferences}", suggest 5 new books. Provide only a bulleted list of book titles. If the history is empty, suggest 5 popular books from various genres.`;
+            const result = await groqChat({ prompt });
+            
+            const recoList = result.content.split('\n').map(item => item.replace(/^-|^\*|\s/g, '').trim()).filter(Boolean);
+            setRecommendations(recoList);
+
         } catch (error) {
             console.error(error);
             toast({

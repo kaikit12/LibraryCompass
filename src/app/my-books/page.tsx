@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Unsubscribe, doc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { Book, Reader } from '@/lib/types';
-import { getPersonalizedBookRecommendations } from '@/ai/flows/personalized-book-recommendations';
+import { groqChat } from '@/ai/flows/groq-chat';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, BookOpen, Sparkles, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -112,12 +113,12 @@ export default function MyBooksPage() {
                 historyTitles = historyBooksSnapshot.docs.map(doc => doc.data().title);
             }
 
-            const result = await getPersonalizedBookRecommendations({
-                readerId: user.id,
-                borrowingHistory: historyTitles,
-                preferences: '',
-            });
-            setRecommendations(result.recommendations);
+            const prompt = `Based on this reading history: ${historyTitles.join(', ')}, suggest 3 new books. Provide only a bulleted list of book titles.`;
+            const result = await groqChat({ prompt });
+            
+            const recoList = result.content.split('\n').map(item => item.replace(/^-|^\*|\s/g, '').trim()).filter(Boolean);
+            setRecommendations(recoList);
+
         } catch (e: any) {
             console.error("Failed to generate recommendations:", e);
             setRecommendations([]);
