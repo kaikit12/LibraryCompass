@@ -249,6 +249,10 @@ export function BookActions() {
         rating: editingBook.rating || 0,
         reviewCount: editingBook.reviewCount || 0,
         totalBorrows: editingBook.totalBorrows || 0,
+        // Series data
+        series: editingBook.series || undefined,
+        seriesOrder: editingBook.seriesOrder || undefined,
+        totalInSeries: editingBook.totalInSeries || undefined,
     };
 
     try {
@@ -537,6 +541,7 @@ export function BookActions() {
                 <TableRow>
                   <TableHead>Tiêu đề</TableHead>
                   <TableHead>Tác giả</TableHead>
+                  <TableHead>Bộ sách</TableHead>
                   <TableHead>Mã thư viện</TableHead>
                   <TableHead>Thể loại</TableHead>
                   <TableHead>Tình trạng</TableHead>
@@ -549,6 +554,16 @@ export function BookActions() {
                   <TableRow key={book.id}>
                     <TableCell className="font-medium">{book.title}</TableCell>
                     <TableCell>{book.author}</TableCell>
+                    <TableCell>
+                      {book.series ? (
+                        <Badge variant="default" className="bg-blue-600 text-xs whitespace-nowrap">
+                          {book.series}
+                          {book.seriesOrder && book.totalInSeries && ` ${book.seriesOrder}/${book.totalInSeries}`}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </TableCell>
                     <TableCell><Badge variant="outline">{book.libraryId || 'Không có'}</Badge></TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">

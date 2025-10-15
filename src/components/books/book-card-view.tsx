@@ -179,6 +179,15 @@ export function BookCardView({
                 </Link>
 
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {/* Series Badge */}
+                  {book.series && (
+                    <Badge variant="default" className="text-xs bg-blue-600 hover:bg-blue-700">
+                      📚 {book.series}
+                      {book.seriesOrder && book.totalInSeries && ` (${book.seriesOrder}/${book.totalInSeries})`}
+                    </Badge>
+                  )}
+                  
+                  {/* Genres */}
                   {(book.genres || [book.genre]).filter(Boolean).map((genre, index) => (
                     <Badge 
                       key={`${genre}-${index}`} 
@@ -188,6 +197,8 @@ export function BookCardView({
                       {genre}
                     </Badge>
                   ))}
+                  
+                  {/* Library ID */}
                   {book.libraryId && (
                     <Badge variant="outline" className="text-xs border-primary/30 text-primary/80">
                       {book.libraryId}

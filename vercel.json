@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/scheduled/send-reminders",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/scheduled/send-overdue",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/scheduled/notify-reservations",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
