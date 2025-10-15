@@ -155,6 +155,45 @@ export async function sendOverdueNotices() {
 }
 
 /**
+ * Check for available reserved books and notify users
+ */
+export async function notifyAvailableReservations() {
+  try {
+    // Query reservations where status is 'ready' (book is available)
+    const reservationsQuery = query(
+      collection(db, 'reservations'),
+      where('status', '==', 'ready'),
+      where('notified', '==', false)
+    );
+
+    const snapshot = await getDocs(reservationsQuery);
+    const emailPromises: Promise<any>[] = [];
+
+    for (const doc of snapshot.docs) {
+      const reservation = doc.data();
+      
+      // Send notification to user
+      if (reservation.userId) {
+        await createNotification(reservation.userId, {
+          message: `Sách "${reservation.bookTitle || 'đã đặt trước'}" đã sẵn sàng để mượn!`,
+          type: 'success'
+        });
+      }
+
+      // TODO: Send email notification
+      // emailPromises.push(sendEmail(...));
+    }
+
+    await Promise.all(emailPromises);
+    console.log(`Sent ${emailPromises.length} reservation notifications`);
+    return { success: true, sent: emailPromises.length };
+  } catch (error) {
+    console.error('Error sending reservation notifications:', error);
+    return { success: false, error };
+  }
+}
+
+/**
  * Utility function to send email notification
  * Can be called from other API routes when events happen
  */

@@ -42,6 +42,7 @@ export function BookActions() {
 
   const [books, setBooks] = useState<Book[]>([]);
   const [readers, setReaders] = useState<Reader[]>([]);
+  const [customGenres, setCustomGenres] = useState<string[]>([]);
   const [filters, setFilters] = useState<SearchFiltersState>({
     searchTerm: '',
     genre: 'all',
@@ -85,10 +86,16 @@ export function BookActions() {
         setReaders(liveReaders);
     });
 
+    // Load custom genres
+    const unsubscribeGenres = onSnapshot(collection(db, "customGenres"), (snapshot) => {
+      const loadedGenres = snapshot.docs.map(doc => doc.data().name as string);
+      setCustomGenres([...new Set(loadedGenres)]); // Remove duplicates
+    });
 
     return () => {
         unsubscribeBooks();
         unsubscribeReaders();
+        unsubscribeGenres();
     };
   }, [user]);
 
@@ -227,7 +234,25 @@ export function BookActions() {
     // Handle custom genre input
     if (customGenre.trim()) {
       const customGenresArray = customGenre.split(',').map(g => g.trim()).filter(Boolean);
+      
+      // Remove "Khác" from finalGenres and add custom genres
+      finalGenres = finalGenres.filter(g => g !== 'Khác');
       finalGenres = [...new Set([...finalGenres, ...customGenresArray])]; // Remove duplicates
+      
+      // Save custom genres to Firestore for future use
+      for (const customG of customGenresArray) {
+        if (customG && !genres.includes(customG)) {
+          try {
+            await addDoc(collection(db, 'customGenres'), {
+              name: customG,
+              createdAt: new Date(),
+              createdBy: user?.uid || 'unknown'
+            });
+          } catch (error) {
+            console.error('Error saving custom genre:', error);
+          }
+        }
+      }
     }
     
     if (!editingBook?.title || !editingBook?.author || finalGenres.length === 0 || editingBook?.quantity === undefined) {
@@ -888,6 +913,7 @@ export function BookActions() {
                         )}
                       </div>
                       <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-1.5 bg-white dark:bg-gray-950">
+                        {/* Predefined genres */}
                         {genres.map((genre) => {
                           const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
                           const isChecked = currentGenres.includes(genre);
@@ -901,8 +927,16 @@ export function BookActions() {
                                   let newGenres: string[];
                                   if (checked) {
                                     newGenres = [...currentGenres, genre];
+                                    // Nếu chọn "Khác", xóa custom genre trước đó
+                                    if (genre === 'Khác') {
+                                      setCustomGenre("");
+                                    }
                                   } else {
                                     newGenres = currentGenres.filter(g => g !== genre);
+                                    // Nếu bỏ chọn "Khác", xóa custom genre
+                                    if (genre === 'Khác') {
+                                      setCustomGenre("");
+                                    }
                                   }
                                   setEditingBook({
                                     ...editingBook,
@@ -920,15 +954,65 @@ export function BookActions() {
                             </div>
                           );
                         })}
+                        
+                        {/* Custom genres from database */}
+                        {customGenres.length > 0 && (
+                          <>
+                            <div className="border-t pt-2 mt-2">
+                              <p className="text-xs text-muted-foreground mb-1.5 px-1">Thể loại tùy chỉnh:</p>
+                            </div>
+                            {customGenres.map((genre) => {
+                              const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                              const isChecked = currentGenres.includes(genre);
+                              return (
+                                <div key={`custom-${genre}`} className="flex items-center space-x-2 hover:bg-gray-50 dark:hover:bg-gray-900 p-1.5 rounded transition-colors">
+                                  <Checkbox
+                                    id={`custom-genre-${genre}`}
+                                    checked={isChecked}
+                                    onCheckedChange={(checked) => {
+                                      const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                                      let newGenres: string[];
+                                      if (checked) {
+                                        newGenres = [...currentGenres, genre];
+                                      } else {
+                                        newGenres = currentGenres.filter(g => g !== genre);
+                                      }
+                                      setEditingBook({
+                                        ...editingBook,
+                                        genres: newGenres,
+                                        genre: newGenres[0] || ''
+                                      });
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={`custom-genre-${genre}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                  >
+                                    {genre} <span className="text-xs text-purple-500">✨</span>
+                                  </label>
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
                       </div>
-                      {customGenre && (
-                        <Input 
-                          id="customGenre" 
-                          placeholder="Nhập thể loại tùy chỉnh (ngăn cách bằng dấu phẩy)" 
-                          value={customGenre} 
-                          onChange={e => setCustomGenre(e.target.value)} 
-                          className="bg-white dark:bg-gray-950"
-                        />
+                      {/* Hiện ô nhập custom genre khi chọn "Khác" */}
+                      {editingBook && (editingBook.genres || [editingBook.genre]).filter(Boolean).includes('Khác') && (
+                        <div className="space-y-2">
+                          <Label htmlFor="customGenre" className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                            Thể loại tùy chỉnh
+                          </Label>
+                          <Input 
+                            id="customGenre" 
+                            placeholder="Nhập thể loại mới (ngăn cách bằng dấu phẩy nếu nhiều)" 
+                            value={customGenre} 
+                            onChange={e => setCustomGenre(e.target.value)} 
+                            className="bg-white dark:bg-gray-950 border-purple-200 dark:border-purple-800 focus:border-purple-400"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            💡 Ví dụ: Triết học, Khoa học tự nhiên, Nấu ăn
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1040,16 +1124,27 @@ export function BookActions() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lateFee" className="text-sm font-medium">Phí trễ/ngày (VNĐ)</Label>
+                      <Label htmlFor="lateFee" className="text-sm font-medium flex items-center gap-2">
+                        Phí trễ/ngày (VNĐ)
+                        {(currentUserRole === 'admin' || currentUserRole === 'librarian') && (
+                          <Badge variant="secondary" className="text-xs">Chỉnh sửa được</Badge>
+                        )}
+                      </Label>
                       <Input 
                         id="lateFee" 
                         type="number" 
                         min="0" 
+                        placeholder="Mặc định: 5,000 VNĐ/ngày"
                         value={editingBook?.lateFeePerDay || 0} 
                         onChange={e => setEditingBook({...editingBook, lateFeePerDay: Number(e.target.value)})} 
                         className="bg-white dark:bg-gray-950" 
-                        disabled={currentUserRole !== 'admin'} 
+                        disabled={currentUserRole !== 'admin' && currentUserRole !== 'librarian'} 
                       />
+                      {(currentUserRole !== 'admin' && currentUserRole !== 'librarian') && (
+                        <p className="text-xs text-muted-foreground">
+                          🔒 Chỉ admin/thủ thư mới có thể chỉnh sửa phí trễ
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
