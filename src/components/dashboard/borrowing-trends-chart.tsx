@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { subDays, format, eachDayOfInterval, startOfDay } from 'date-fns';
+import { subDays, format, eachDayOfInterval } from 'date-fns';
+import { vi } from 'date-fns/locale';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
@@ -23,7 +24,7 @@ export function BorrowingTrendsChart() {
         const dateInterval = eachDayOfInterval({ start: last7Days, end: today });
         
         const initialData = dateInterval.map(day => ({
-            date: format(day, 'MMM d'),
+            date: format(day, 'dd MMM', { locale: vi }),
             borrowed: 0,
             returned: 0,
         }));
@@ -39,7 +40,7 @@ export function BorrowingTrendsChart() {
                 const returnedAt = borrowal.returnedAt?.toDate();
 
                 if (borrowedAt && borrowedAt >= last7Days && borrowedAt <= today) {
-                    const dayKey = format(borrowedAt, 'MMM d');
+                    const dayKey = format(borrowedAt, 'dd MMM', { locale: vi });
                     const entry = processedData.find(d => d.date === dayKey);
                     if (entry) {
                         entry.borrowed += 1;
@@ -47,7 +48,7 @@ export function BorrowingTrendsChart() {
                 }
                 
                 if (returnedAt && returnedAt >= last7Days && returnedAt <= today) {
-                     const dayKey = format(returnedAt, 'MMM d');
+                     const dayKey = format(returnedAt, 'dd MMM', { locale: vi });
                     const entry = processedData.find(d => d.date === dayKey);
                     if (entry) {
                         entry.returned += 1;
@@ -80,8 +81,8 @@ export function BorrowingTrendsChart() {
                         }} 
                     />
                     <Legend />
-                    <Bar dataKey="borrowed" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Borrowed" />
-                    <Bar dataKey="returned" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} name="Returned" />
+                    <Bar dataKey="borrowed" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Mượn" />
+                    <Bar dataKey="returned" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} name="Trả" />
                 </BarChart>
             </ResponsiveContainer>
         </div>

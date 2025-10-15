@@ -1,18 +1,23 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { Inter } from 'next/font/google';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { AuthProvider } from '@/context/auth-context';
+import { ThemeProvider } from '@/context/theme-context';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { AppHeader } from '@/components/layout/app-header';
+import { AppFooter } from '@/components/layout/app-footer';
 
 
 export const metadata: Metadata = {
   title: 'Library Compass',
   description: 'A web app for library management, streamlining books, readers, and borrow/return records.',
 };
+
+const inter = Inter({ subsets: ['latin', 'vietnamese'], weight: ['400','500','600','700','800'], variable: '--font-inter' });
 
 export default function RootLayout({
   children,
@@ -22,24 +27,25 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet" />
+        {/* Fonts are loaded via next/font */}
       </head>
-      <body className={cn('font-body antialiased')}>
-        <AuthProvider>
-            <AuthGuard>
-                <SidebarProvider>
-                    <AppSidebar />
-                    <SidebarInset>
-                      <AppHeader />
-                      <div className="p-4 md:p-6 lg:p-8">
-                        {children}
-                      </div>
-                    </SidebarInset>
-                </SidebarProvider>
-            </AuthGuard>
-        </AuthProvider>
+      <body className={cn('font-body antialiased', inter.variable)}>
+        <ThemeProvider>
+          <AuthProvider>
+              <AuthGuard>
+                  <SidebarProvider>
+                      <AppSidebar />
+                      <SidebarInset>
+                        <AppHeader />
+                        <div className="flex-1 p-4 md:p-6 lg:p-8">
+                          {children}
+                        </div>
+                        <AppFooter />
+                      </SidebarInset>
+                  </SidebarProvider>
+              </AuthGuard>
+          </AuthProvider>
+        </ThemeProvider>
         <Toaster />
       </body>
     </html>

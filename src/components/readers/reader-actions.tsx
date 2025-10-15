@@ -6,8 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, PlusCircle, Search } from "lucide-react";
@@ -17,10 +17,9 @@ import { db } from "@/lib/firebase";
 import { collection, updateDoc, doc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { useAuth } from "@/context/auth-context";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DeleteUserChecklist } from "./delete-user-checklist";
 
-
-interface ReaderActionsProps {
-}
 
 const RoleBadge = ({ role }: { role: Reader['role'] }) => {
     const variant: "default" | "secondary" | "destructive" | "outline" = 
@@ -33,21 +32,25 @@ const RoleBadge = ({ role }: { role: Reader['role'] }) => {
         : role === 'librarian' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
         : '';
 
-    return <Badge variant={variant} className={className}>{role}</Badge>;
+  const viRole = role === 'admin' ? 'Quản trị' : role === 'librarian' ? 'Thủ thư' : 'Bạn đọc';
+  return <Badge variant={variant} className={className}>{viRole}</Badge>;
 }
 
 
-export function ReaderActions({ }: ReaderActionsProps) {
+export function ReaderActions() {
   const { user: currentUser } = useAuth();
   const currentUserRole = currentUser?.role;
 
   const [readers, setReaders] = useState<Reader[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"reader" | "librarian" | "admin">("reader");
   const { toast } = useToast();
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingReader, setEditingReader] = useState<Partial<Reader> | null>(null);
+  const [isDeleteChecklistOpen, setIsDeleteChecklistOpen] = useState(false);
+  const [readerToDelete, setReaderToDelete] = useState<Reader | null>(null);
 
   useEffect(() => {
     const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
@@ -87,17 +90,31 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
   const filteredReaders = useMemo(() => {
     return enrichedReaders.filter(reader => {
-      return reader.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             reader.email.toLowerCase().includes(searchTerm.toLowerCase());
+      // Filter by active tab (role)
+      const matchesRole = reader.role === activeTab;
+      
+      // Filter by search term (case-insensitive)
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = 
+        reader.name.toLowerCase().includes(searchLower) ||
+        reader.email.toLowerCase().includes(searchLower) ||
+        reader.memberId?.toString().includes(searchTerm) || // Member ID search
+        reader.phone?.toLowerCase().includes(searchLower);
+      
+      return matchesRole && matchesSearch;
     });
-  }, [enrichedReaders, searchTerm]);
+  }, [enrichedReaders, searchTerm, activeTab]);
 
   const getBorrowedBooksCount = (readerId: string) => {
     return readers.find(r => r.id === readerId)?.booksOut || 0;
   }
 
+  const getCountByRole = (role: Reader['role']) => {
+    return readers.filter(r => r.role === role).length;
+  }
+
   const handleOpenAdd = () => {
-    setEditingReader({ lateFees: 0, role: 'reader' });
+    setEditingReader({ lateFees: 0, role: activeTab }); // Default to current tab role
     setIsAddEditOpen(true);
   };
 
@@ -108,7 +125,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
 
   const handleSaveReader = async () => {
     if (!editingReader?.name || !editingReader?.email) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please fill in name and email.'});
+      toast({ variant: 'destructive', title: 'Lỗi', description: 'Vui lòng nhập tên và email.'});
       return;
     }
 
@@ -122,41 +139,70 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 lateFees: Number(editingReader.lateFees) || 0,
                 role: editingReader.role || 'reader',
             });
-            toast({ title: '✅ Reader Updated', description: `Profile for ${editingReader.name} has been updated.`});
+            toast({ title: '✅ Cập nhật bạn đọc', description: `Hồ sơ của ${editingReader.name} đã được cập nhật.`});
         }
         // Note: Adding a new user is disabled in the UI, registration flow handles it.
         setIsAddEditOpen(false);
         setEditingReader(null);
 
-    } catch(error) {
-        toast({ variant: 'destructive', title: '❌ Error', description: 'There was a problem saving the reader.'});
+  } catch {
+    toast({ variant: 'destructive', title: '❌ Lỗi', description: 'Có lỗi khi lưu thông tin bạn đọc.'});
     }
   };
 
   const handleDeleteReader = async (readerId: string) => {
-    const readerToDelete = readers.find(r => r.id === readerId);
-    if (readerToDelete && readerToDelete.booksOut > 0) {
-        toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot delete reader with borrowed books.'});
-        return;
+    const reader = readers.find(r => r.id === readerId);
+    if (!reader) return;
+    
+    if (reader.booksOut > 0) {
+      toast({ variant: 'destructive', title: 'Không thể thực hiện', description: 'Không thể xóa bạn đọc đang có sách mượn.'});
+      return;
     }
     
+    // Open checklist dialog
+    setReaderToDelete(reader);
+    setIsDeleteChecklistOpen(true);
+  };
+
+  const confirmDeleteReader = async () => {
+    if (!readerToDelete) return;
+    
     try {
-        await deleteDoc(doc(db, 'users', readerId));
-        toast({ title: '✅ Reader Deleted', description: 'The reader has been removed from the system.'});
-    } catch(error) {
-        toast({ variant: 'destructive', title: '❌ Error', description: 'Could not delete reader.'});
+      const response = await fetch('/api/users/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: readerToDelete.id }),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể xóa bạn đọc.');
+      }
+
+      toast({ 
+        title: '✅ Bước 1 hoàn tất', 
+        description: 'Đã xóa khỏi Firestore. Tiếp tục xóa trong Firebase Authentication Console.',
+        duration: 8000,
+      });
+      
+      setIsDeleteChecklistOpen(false);
+      setReaderToDelete(null);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể xóa bạn đọc.';
+      toast({ variant: 'destructive', title: '❌ Lỗi', description: message });
     }
   };
 
   
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   }
 
   const canEdit = (targetUser: Reader) => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return currentUser.id !== targetUser.id; // Admin can edit anyone but themselves
-    if (currentUser.role === 'librarian') return targetUser.role === 'reader'; // Librarian can edit readers
+    // Librarian cannot edit any users
     return false;
   }
 
@@ -166,7 +212,7 @@ export function ReaderActions({ }: ReaderActionsProps) {
     if (currentUser.id === targetUser.id) return false; // Can't delete self
 
     if (currentUser.role === 'admin') return true; // Admin can delete anyone (without books)
-    if (currentUser.role === 'librarian') return targetUser.role === 'reader'; // Librarian can delete readers (without books)
+    // Librarian cannot delete any users
     return false;
   }
 
@@ -174,8 +220,8 @@ export function ReaderActions({ }: ReaderActionsProps) {
   if (currentUserRole === 'reader') {
       return (
           <Card>
-              <CardContent className="pt-6 text-center text-muted-foreground">
-                  You do not have permission to view this page.
+        <CardContent className="pt-6 text-center text-muted-foreground">
+          Bạn không có quyền truy cập trang này.
               </CardContent>
           </Card>
       )
@@ -184,36 +230,68 @@ export function ReaderActions({ }: ReaderActionsProps) {
   return (
     <Card>
       <CardContent className="pt-6">
-        <div className="flex flex-col sm:flex-row gap-4 justify-between mb-4">
-          <div className="relative sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by name or email..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "reader" | "librarian" | "admin")}>
+          <div className="flex flex-col sm:flex-row gap-4 justify-between mb-4">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="reader" className="flex-1 sm:flex-none">
+                Bạn đọc ({getCountByRole('reader')})
+              </TabsTrigger>
+              {/* Only admin can see librarian and admin tabs */}
+              {currentUserRole === 'admin' && (
+                <>
+                  <TabsTrigger value="librarian" className="flex-1 sm:flex-none">
+                    Thủ thư ({getCountByRole('librarian')})
+                  </TabsTrigger>
+                  <TabsTrigger value="admin" className="flex-1 sm:flex-none">
+                    Quản trị ({getCountByRole('admin')})
+                  </TabsTrigger>
+                </>
+              )}
+            </TabsList>
+            
+            <div className="flex gap-2">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Tìm theo tên hoặc email..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+              </div>
+              {/* Only admin can add users */}
+              {currentUserRole === 'admin' && (
+                <Button onClick={handleOpenAdd}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Thêm
+                </Button>
+              )}
+            </div>
           </div>
-          { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
-            <Button onClick={handleOpenAdd} disabled>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Reader (via Register)
-            </Button>
-          )}
-        </div>
 
-        <div className="overflow-x-auto">
-            <div className="hidden md:block">
+          <TabsContent value={activeTab} className="mt-0">
+            <div className="overflow-x-auto">
+              <div className="hidden md:block">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead>Name</TableHead>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Tên</TableHead>
                         <TableHead>Email</TableHead>
-                        <TableHead>Books Out</TableHead>
-                        <TableHead>Late Fees</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>Email Verified</TableHead>
+                        <TableHead>Đang mượn</TableHead>
+                        <TableHead>Phí trễ</TableHead>
+                        <TableHead>Vai trò</TableHead>
+                        <TableHead className="text-right">Thao tác</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredReaders.length > 0 ? filteredReaders.map(readerItem => (
                         <TableRow key={readerItem.id}>
+                            <TableCell className="font-mono font-bold text-primary">
+                                {readerItem.memberId ? `#${readerItem.memberId}` : '-'}
+                            </TableCell>
                             <TableCell className="font-medium">{readerItem.name}</TableCell>
                             <TableCell>{readerItem.email}</TableCell>
+                            <TableCell>
+                                <Badge variant={readerItem.emailVerified ? 'default' : 'destructive'}>
+                                    {readerItem.emailVerified ? '✓ Đã xác thực' : '✗ Chưa xác thực'}
+                                </Badge>
+                            </TableCell>
                             <TableCell>
                             <Badge variant="outline">{getBorrowedBooksCount(readerItem.id)}</Badge>
                             </TableCell>
@@ -229,28 +307,28 @@ export function ReaderActions({ }: ReaderActionsProps) {
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Open menu</span>
+                                    <span className="sr-only">Mở menu</span>
                                     <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
                                 {canEdit(readerItem) && (
-                                    <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Edit Profile</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Sửa hồ sơ</DropdownMenuItem>
                                 )}
                                 {canDelete(readerItem) && (
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete Profile</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Xóa hồ sơ</DropdownMenuItem>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This will permanently delete {readerItem.name}'s profile. This action cannot be undone.</AlertDialogDescription>
+                                                <AlertDialogTitle>Bạn có chắc chắn?</AlertDialogTitle>
+                                                <AlertDialogDescription>Hành động này sẽ xóa vĩnh viễn hồ sơ của {readerItem.name}. Không thể hoàn tác.</AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Continue</AlertDialogAction>
+                                                <AlertDialogCancel>Hủy</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Tiếp tục</AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
@@ -261,8 +339,8 @@ export function ReaderActions({ }: ReaderActionsProps) {
                         </TableRow>
                         )) : (
                         <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center">
-                            No readers found.
+                            <TableCell colSpan={8} className="h-24 text-center">
+                            Không tìm thấy bạn đọc nào.
                             </TableCell>
                         </TableRow>
                         )}
@@ -282,28 +360,28 @@ export function ReaderActions({ }: ReaderActionsProps) {
                            <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0 -mr-2 -mt-2 flex-shrink-0">
-                                    <span className="sr-only">Open menu</span>
+                                    <span className="sr-only">Mở menu</span>
                                     <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
                                     {canEdit(readerItem) && (
-                                        <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Edit Profile</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleOpenEdit(readerItem)}>Sửa hồ sơ</DropdownMenuItem>
                                     )}
                                     {canDelete(readerItem) && (
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete Profile</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Xóa hồ sơ</DropdownMenuItem>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
-                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                    <AlertDialogDescription>This will permanently delete {readerItem.name}'s profile. This action cannot be undone.</AlertDialogDescription>
+                                                    <AlertDialogTitle>Bạn có chắc chắn?</AlertDialogTitle>
+                                                    <AlertDialogDescription>Hành động này sẽ xóa vĩnh viễn hồ sơ của {readerItem.name}. Không thể hoàn tác.</AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Continue</AlertDialogAction>
+                                                    <AlertDialogCancel>Hủy</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteReader(readerItem.id)}>Tiếp tục</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
@@ -312,23 +390,23 @@ export function ReaderActions({ }: ReaderActionsProps) {
                             </DropdownMenu>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Books Out</span>
+                            <span className="text-muted-foreground">Đang mượn</span>
                             <Badge variant="outline">{getBorrowedBooksCount(readerItem.id)}</Badge>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Late Fees</span>
+                            <span className="text-muted-foreground">Phí trễ</span>
                             <Badge variant={readerItem.lateFees > 0 ? 'destructive' : 'secondary'}>
                                 {formatCurrency(readerItem.lateFees || 0)}
                             </Badge>
                         </div>
                          <div className="flex justify-between text-sm items-center">
-                            <span className="text-muted-foreground">Role</span>
+                            <span className="text-muted-foreground">Vai trò</span>
                             <RoleBadge role={readerItem.role} />
                         </div>
                     </div>
                 )) : (
                      <div className="col-span-1 sm:col-span-2 h-24 text-center flex items-center justify-center text-muted-foreground">
-                        No readers found.
+                        Không tìm thấy bạn đọc nào.
                     </div>
                 )}
             </div>
@@ -338,11 +416,11 @@ export function ReaderActions({ }: ReaderActionsProps) {
         <Dialog open={isAddEditOpen} onOpenChange={setIsAddEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingReader?.id ? 'Edit Reader' : 'Add New Reader'}</DialogTitle>
+              <DialogTitle>{editingReader?.id ? 'Sửa thông tin bạn đọc' : 'Thêm bạn đọc mới'}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">Name</Label>
+                <Label htmlFor="name" className="text-right">Tên</Label>
                 <Input id="name" value={editingReader?.name || ''} onChange={e => setEditingReader({...editingReader, name: e.target.value})} className="col-span-3" />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -350,34 +428,41 @@ export function ReaderActions({ }: ReaderActionsProps) {
                 <Input id="email" type="email" value={editingReader?.email || ''} onChange={e => setEditingReader({...editingReader, email: e.target.value})} className="col-span-3" disabled/>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="phone" className="text-right">Phone</Label>
+                <Label htmlFor="phone" className="text-right">Số điện thoại</Label>
                 <Input id="phone" value={editingReader?.phone || ''} onChange={e => setEditingReader({...editingReader, phone: e.target.value})} className="col-span-3" />
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="lateFees" className="text-right">Late Fees</Label>
-                <Input id="lateFees" type="number" value={editingReader?.lateFees || 0} onChange={e => setEditingReader({...editingReader, lateFees: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
-              </div>
-               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="role" className="text-right">Role</Label>
+                <Label htmlFor="role" className="text-right">Vai trò</Label>
                  <Select value={editingReader?.role || 'reader'} onValueChange={(value) => setEditingReader({...editingReader, role: value as Reader['role']})} disabled={currentUserRole !== 'admin'}>
                     <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select a role" />
+                        <SelectValue placeholder="Chọn vai trò" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="reader">Reader</SelectItem>
-                        <SelectItem value="librarian">Librarian</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="reader">Bạn đọc</SelectItem>
+                        <SelectItem value="librarian">Thủ thư</SelectItem>
+                        <SelectItem value="admin">Quản trị</SelectItem>
                     </SelectContent>
                 </Select>
               </div>
             </div>
             <DialogFooter>
-               <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-              <Button type="submit" onClick={handleSaveReader}>Save changes</Button>
+               <DialogClose asChild><Button type="button" variant="secondary">Hủy</Button></DialogClose>
+              <Button type="submit" onClick={handleSaveReader}>Lưu thay đổi</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete User Checklist */}
+        <DeleteUserChecklist
+          open={isDeleteChecklistOpen}
+          onOpenChange={setIsDeleteChecklistOpen}
+          userName={readerToDelete?.name || ''}
+          userEmail={readerToDelete?.email || ''}
+          onConfirm={confirmDeleteReader}
+        />
         
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

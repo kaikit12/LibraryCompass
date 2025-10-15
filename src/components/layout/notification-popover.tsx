@@ -46,8 +46,8 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
             setNotifications(fetchedNotifications);
             setUnreadCount(count);
         }, (error) => {
-            console.error("Error fetching notifications:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch notifications.' });
+            console.error("Lỗi khi lấy thông báo:", error);
+            toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể tải thông báo.' });
         });
 
         return () => unsubscribe();
@@ -67,26 +67,16 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message);
             // State will be updated by the onSnapshot listener, so no need to toast here
-        } catch (error: any) {
-            console.error(`Error with ${action}:`, error);
-            toast({ variant: 'destructive', title: 'Error', description: `Could not ${action.replace('-', ' ')}.` });
+        } catch (error: unknown) {
+            console.error(`Lỗi với tác vụ ${action}:`, error);
+            toast({ variant: 'destructive', title: 'Lỗi', description: `Không thể ${action.replace('-', ' ')}.` });
         }
     };
-
-
-    const getIconForType = (type: Notification['type']) => {
-        const baseClass = "h-4 w-4 mr-3";
-        switch (type) {
-            case 'success': return <CheckCheck className={cn(baseClass, "text-green-500")} />;
-            case 'warning': return <Bell className={cn(baseClass, "text-yellow-500")} />;
-            default: return <Bell className={cn(baseClass, "text-muted-foreground")} />;
-        }
-    }
 
     return (
         <Popover>
             <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
+                <Button variant="ghost" size="icon" className="relative" aria-label="Mở thông báo">
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
                         <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center rounded-full p-0">
@@ -95,14 +85,14 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
                     )}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-0">
+            <PopoverContent className="w-80 p-0 z-[100]" align="end" sideOffset={8}>
                 <div className="p-4">
-                    <h4 className="font-medium leading-none">Notifications</h4>
+                    <h4 className="font-medium leading-none">Thông báo</h4>
                 </div>
                 <Separator />
                 <ScrollArea className="h-96">
                     {notifications.length === 0 ? (
-                        <p className="p-4 text-sm text-center text-muted-foreground">You have no notifications.</p>
+                        <p className="p-4 text-sm text-center text-muted-foreground">Bạn chưa có thông báo nào.</p>
                     ) : (
                         <div className="p-2">
                            {notifications.map(notif => (
@@ -111,7 +101,7 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
                                    <div className={cn("flex-grow", notif.isRead && "ml-4")}>
                                         <p className="text-sm">{notif.message}</p>
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            {notif.createdAt ? formatDistanceToNow(notif.createdAt, { addSuffix: true }) : 'just now'}
+                                            {notif.createdAt ? formatDistanceToNow(notif.createdAt, { addSuffix: true }) : 'vừa xong'}
                                         </p>
                                    </div>
                                </div>
@@ -119,17 +109,21 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
                         </div>
                     )}
                 </ScrollArea>
-                 <Separator />
-                 <div className="p-2 flex justify-between">
-                     <Button variant="ghost" size="sm" onClick={() => handleAction('mark-all-read')} disabled={unreadCount === 0}>
-                         <CheckCheck className="mr-2 h-4 w-4" />
-                         Mark all as read
-                     </Button>
-                     <Button variant="ghost" size="sm" onClick={() => handleAction('clear-all')} disabled={notifications.length === 0} className="text-destructive hover:text-destructive">
-                         <Trash2 className="mr-2 h-4 w-4" />
-                         Clear all
-                     </Button>
-                 </div>
+                {notifications.length > 0 && (
+                    <>
+                        <Separator />
+                        <div className="p-2 flex flex-col sm:flex-row gap-2 justify-between">
+                            <Button variant="ghost" size="sm" onClick={() => handleAction('mark-all-read')} disabled={unreadCount === 0} className="text-xs sm:text-sm">
+                                <CheckCheck className="mr-2 h-4 w-4 shrink-0" />
+                                <span className="truncate">Đánh dấu đã đọc</span>
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleAction('clear-all')} className="text-destructive hover:text-destructive text-xs sm:text-sm">
+                                <Trash2 className="mr-2 h-4 w-4 shrink-0" />
+                                <span className="truncate">Xóa tất cả</span>
+                            </Button>
+                        </div>
+                    </>
+                )}
             </PopoverContent>
         </Popover>
     );

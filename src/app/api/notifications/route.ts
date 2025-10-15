@@ -53,9 +53,10 @@ async function handleRequest(request: Request) {
         return NextResponse.json({ success: false, message: 'Invalid action specified.' }, { status: 400 });
 
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(`Error in notifications API:`, error);
-        return NextResponse.json({ success: false, message: error.message || 'An unexpected error occurred.' }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+        return NextResponse.json({ success: false, message }, { status: 500 });
     }
 }
 

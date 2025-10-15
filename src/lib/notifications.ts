@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, Timestamp } from 'firebase/firestore';
 
 interface NotificationPayload {
     message: string;
@@ -23,7 +23,157 @@ export async function createNotification(userId: string, payload: NotificationPa
             isRead: false,
             createdAt: serverTimestamp(),
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error("Error creating notification:", error);
     }
+}
+
+/**
+ * Check for borrowals that are due in 3 days and send reminder emails
+ */
+export async function sendDueReminders() {
+  try {
+    const now = new Date();
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
+
+    // Query borrowals that haven't been returned and are due in 3 days
+    const borrowalsQuery = query(
+      collection(db, 'borrowals'),
+      where('returnedAt', '==', null),
+      where('dueDate', '>=', Timestamp.fromDate(threeDaysFromNow)),
+      where('dueDate', '<', Timestamp.fromDate(fourDaysFromNow))
+    );
+
+    const snapshot = await getDocs(borrowalsQuery);
+    const emailPromises = [];
+
+    for (const doc of snapshot.docs) {
+      const borrowal = doc.data();
+      
+      // Fetch book details
+      const bookDoc = await getDocs(query(collection(db, 'books'), where('__name__', '==', borrowal.bookId)));
+      const book = bookDoc.docs[0]?.data();
+
+      if (!book) continue;
+
+      const daysUntilDue = Math.ceil(
+        (borrowal.dueDate.toDate().getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Send email
+      const emailPromise = fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'due-reminder',
+          to: borrowal.userEmail,
+          data: {
+            userName: borrowal.userName,
+            bookTitle: book.title,
+            dueDate: borrowal.dueDate.toDate(),
+            daysUntilDue,
+          },
+        }),
+      });
+
+      emailPromises.push(emailPromise);
+    }
+
+    await Promise.all(emailPromises);
+    console.log(`Sent ${emailPromises.length} due reminder emails`);
+    
+    return { success: true, count: emailPromises.length };
+  } catch (error) {
+    console.error('Error sending due reminders:', error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * Check for overdue borrowals and send overdue notices
+ */
+export async function sendOverdueNotices() {
+  try {
+    const now = new Date();
+
+    // Query borrowals that haven't been returned and are past due date
+    const borrowalsQuery = query(
+      collection(db, 'borrowals'),
+      where('returnedAt', '==', null),
+      where('dueDate', '<', Timestamp.fromDate(now))
+    );
+
+    const snapshot = await getDocs(borrowalsQuery);
+    const emailPromises = [];
+
+    for (const doc of snapshot.docs) {
+      const borrowal = doc.data();
+      
+      // Fetch book details
+      const bookDoc = await getDocs(query(collection(db, 'books'), where('__name__', '==', borrowal.bookId)));
+      const book = bookDoc.docs[0]?.data();
+
+      if (!book) continue;
+
+      const daysOverdue = Math.floor(
+        (now.getTime() - borrowal.dueDate.toDate().getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Only send if overdue by 1, 3, 7, or 14+ days to avoid spam
+      if (![1, 3, 7, 14].includes(daysOverdue) && daysOverdue < 14) {
+        continue;
+      }
+
+      // Send email
+      const emailPromise = fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'overdue',
+          to: borrowal.userEmail,
+          data: {
+            userName: borrowal.userName,
+            bookTitle: book.title,
+            dueDate: borrowal.dueDate.toDate(),
+            daysOverdue,
+          },
+        }),
+      });
+
+      emailPromises.push(emailPromise);
+    }
+
+    await Promise.all(emailPromises);
+    console.log(`Sent ${emailPromises.length} overdue notice emails`);
+    
+    return { success: true, count: emailPromises.length };
+  } catch (error) {
+    console.error('Error sending overdue notices:', error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * Utility function to send email notification
+ * Can be called from other API routes when events happen
+ */
+export async function sendEmailNotification(
+  type: 'due-reminder' | 'overdue' | 'reservation-ready' | 'appointment-confirmed' | 'renewal-approved',
+  to: string,
+  data: any
+) {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, to, data }),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+    return { success: false, error };
+  }
 }

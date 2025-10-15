@@ -8,7 +8,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem
 } from '@/components/ui/sidebar'
-import { Home, Book, Users, BarChart3, BookHeart } from 'lucide-react'
+import { Home, Book, Users, BarChart3, BookHeart, Settings, UserCog } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth-context'
@@ -16,14 +16,16 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 import * as React from 'react'
 
 const mainLinks = [
-  { href: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'librarian'] },
-  { href: '/books', label: 'Browse Books', icon: Book, roles: ['admin', 'librarian', 'reader'] },
-  { href: '/my-books', label: 'My Books', icon: BookHeart, roles: ['reader'] },
-  { href: '/readers', label: 'Readers', icon: Users, roles: ['admin', 'librarian'] },
+  { href: '/', label: 'Bảng điều khiển', icon: Home, roles: ['admin', 'librarian'] },
+  { href: '/books', label: 'Kho sách', icon: Book, roles: ['admin', 'librarian', 'reader'] },
+  { href: '/my-books', label: 'Trang cá nhân', icon: BookHeart, roles: ['admin', 'librarian', 'reader'] },
+  { href: '/readers', label: 'Bạn đọc', icon: Users, roles: ['admin', 'librarian'] },
+  { href: '/settings', label: 'Cài đặt tài khoản', icon: UserCog, roles: ['admin', 'librarian', 'reader'] },
+  { href: '/custom', label: 'Tùy chỉnh hệ thống', icon: Settings, roles: ['admin'] },
 ]
 
 const reportLinks = [
-    { href: '/reports/revenue', label: 'Revenue', roles: ['admin', 'librarian'] },
+  { href: '/reports/revenue', label: 'Doanh thu', roles: ['admin'] }, // Only admin
 ]
 
 export function MainNav() {
@@ -64,7 +66,7 @@ export function MainNav() {
                     <CollapsibleTrigger asChild>
                         <SidebarMenuButton>
                             <BarChart3 className="h-4 w-4" />
-                            <span>Reports</span>
+                            <span>Báo cáo</span>
                         </SidebarMenuButton>
                     </CollapsibleTrigger>
                 </SidebarMenuItem>

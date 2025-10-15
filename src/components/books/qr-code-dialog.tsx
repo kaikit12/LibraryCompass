@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import QRCode from "qrcode.react";
+import Image from "next/image";
 import type { Book } from "@/lib/types";
 import {
   Dialog,
@@ -26,9 +27,8 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
   useEffect(() => {
     if (book && isOpen) {
       setIsLoading(true);
-      // Ensure book.id is encoded if it could contain special characters
-      const encodedBookId = encodeURIComponent(book.id);
-      const url = `${window.location.origin}/books/${encodedBookId}`;
+      // Store Library ID in QR code for quick scanner access
+      const url = book.libraryId || book.id;
       setBookUrl(url);
       // Give a brief moment for the state to update before hiding skeleton
       setTimeout(() => setIsLoading(false), 100); 
@@ -42,49 +42,50 @@ export function QRCodeDialog({ book, isOpen, setIsOpen }: QRCodeDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-xs">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Book QR Code: {book?.title}</DialogTitle>
+          <DialogTitle>Mã QR Thư viện</DialogTitle>
           <DialogDescription>
-            Scan to view details and borrow/return the book.
+            Quét để tìm kiếm và quản lý sách nhanh chóng
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center p-4 gap-4">
           {isLoading ? (
             <>
-              <Skeleton className="h-[180px] w-[180px] rounded-md" />
-              <Skeleton className="h-[160px] w-[160px]" />
+              <Skeleton className="h-[200px] w-[200px]" />
+              <Skeleton className="h-4 w-32" />
             </>
           ) : (
             <>
-              {book?.imageUrl ? (
-                  <img
-                      src={book.imageUrl}
-                      alt={`Cover of ${book.title}`}
-                      width={180}
-                      height={180}
-                      className="rounded-md object-cover w-[180px] h-[180px]"
-                  />
-              ) : (
-                <div className="h-[180px] w-[180px] bg-muted rounded-md flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">No Image</p>
-                </div>
-              )}
               {bookUrl && (
-                <div className="p-2 bg-white rounded-md">
+                <div className="p-4 bg-white rounded-lg shadow-sm border-2 border-dashed">
                   <QRCode
                     value={bookUrl}
-                    size={160}
+                    size={200}
                     bgColor={"#ffffff"}
                     fgColor={"#000000"}
-                    level={"L"}
+                    level={"H"}
                     includeMargin={true}
                   />
                 </div>
               )}
+              <div className="text-center space-y-2">
+                <p className="font-semibold text-lg">{book?.title}</p>
+                <p className="text-sm text-muted-foreground">{book?.author}</p>
+                {book?.libraryId && (
+                  <div className="flex items-center justify-center gap-2 mt-3">
+                    <span className="text-xs text-muted-foreground">Mã thư viện:</span>
+                    <code className="px-2 py-1 bg-muted rounded font-mono text-sm font-semibold">
+                      {book.libraryId}
+                    </code>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  In QR code này và dán lên sách để quét tìm kiếm
+                </p>
+              </div>
             </>
           )}
-           <p className="text-sm text-muted-foreground">Scan to see book details</p>
         </div>
       </DialogContent>
     </Dialog>

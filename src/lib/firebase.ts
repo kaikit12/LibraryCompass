@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, onSnapshot, type Firestore } from 'firebase/firestore';
 import { getAuth, type Auth } from "firebase/auth";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,19 +12,10 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app: FirebaseApp | null = null;
-let db: Firestore | null = null;
-let auth: Auth | null = null;
-
-// Conditionally initialize Firebase only if the API key is provided.
-// This prevents the app from crashing if the .env file is not configured.
-if (firebaseConfig.apiKey) {
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    db = getFirestore(app);
-    auth = getAuth(app);
-} else {
-    console.warn("Firebase configuration is missing. Firebase features will be disabled.");
-}
-
+// Initialize Firebase app once and export strongly-typed instances
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+export const db: Firestore = getFirestore(app);
+export const auth: Auth = getAuth(app);
+export const storage: FirebaseStorage = getStorage(app);
 // The onSnapshot export is not tied to the initialization
-export { db, auth, onSnapshot };
+export { onSnapshot };

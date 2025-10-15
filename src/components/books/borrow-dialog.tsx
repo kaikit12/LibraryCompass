@@ -11,18 +11,16 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { formatISO } from "date-fns";
+import { formatISO, format, addDays } from "date-fns";
+import { vi } from "date-fns/locale";
 import { useAuth } from "@/context/auth-context";
+import { Search, CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface BorrowDialogProps {
   book: Book | null;
@@ -38,22 +36,43 @@ export function BorrowDialog({
   setIsOpen,
 }: BorrowDialogProps) {
   const { user } = useAuth();
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [dueDate, setDueDate] = useState<string>("");
+  const [memberId, setMemberId] = useState<string>("");
+  const [selectedReader, setSelectedReader] = useState<Reader | null>(null);
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   useEffect(() => {
-    // If the dialog is open and the current user is a reader, pre-select them.
+    // If the dialog is open and the current user is a reader, pre-fill their info
     if (isOpen && user?.role === 'reader' && user?.id) {
-        setSelectedUserId(user.id);
+      setMemberId(user.memberId?.toString() || "");
+      setSelectedReader(user as Reader);
     }
   }, [user, isOpen]);
 
-  const handleConfirmBorrow = async () => {
-    if (!book || !selectedUserId || !dueDate) {
-        toast({ variant: 'destructive', title: '❌ Error', description: 'Please select a reader and a due date.'});
-        return;
+  // Auto-fill user info when memberId changes
+  useEffect(() => {
+    if (!memberId) {
+      setSelectedReader(null);
+      return;
     }
+
+    // Find reader by memberId
+    const reader = readers.find(r => r.memberId?.toString() === memberId);
+    if (reader) {
+      setSelectedReader(reader);
+    } else {
+      setSelectedReader(null);
+    }
+  }, [memberId, readers]);
+
+  const handleConfirmBorrow = async () => {
+    if (!book || !selectedReader || !dueDate) {
+      toast({ variant: 'destructive', title: '❌ Lỗi', description: 'Vui lòng nhập ID bạn đọc và ngày trả.'});
+      return;
+    }
+
+    // dueDate is already a Date object from Calendar, no need to validate again
+    // Calendar component already enforces min/max dates
 
     try {
       const response = await fetch("/api/borrow", {
@@ -61,87 +80,166 @@ export function BorrowDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookId: book.id,
-          userId: selectedUserId,
-          dueDate: formatISO(new Date(dueDate)),
+          userId: selectedReader.id,
+          dueDate: formatISO(dueDate),
+          borrowerRole: user?.role, // Pass user's role for authorization check
         }),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Failed to borrow book.");
+        throw new Error(data.message || "Mượn sách thất bại.");
       }
 
       toast({
-        title: "✅ Borrow successful!",
-        description: `"${book.title}" has been borrowed.`,
+        title: "✅ Mượn sách thành công!",
+        description: `${book.title} đã được mượn.`,
       });
       handleClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Mượn sách thất bại.';
       toast({
         variant: "destructive",
-        title: "❌ Borrow failed",
-        description: error.message,
+        title: "❌ Mượn sách thất bại",
+        description: message,
       });
     }
   };
 
   const handleClose = () => {
     setIsOpen(false);
-    // Only reset the selected user if they are not a reader
-    if(user?.role !== 'reader') {
-        setSelectedUserId("");
+    // Only reset if not a reader
+    if (user?.role !== 'reader') {
+      setMemberId("");
+      setSelectedReader(null);
     }
-    setDueDate("");
+    setDueDate(undefined);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Borrow Book: {book?.title}</DialogTitle>
+          <DialogTitle>Mượn sách: {book?.title}</DialogTitle>
           <DialogDescription>
-            Select a reader and a return date to borrow this book.
+            Nhập ID bạn đọc và ngày trả để mượn cuốn sách này.
           </DialogDescription>
         </DialogHeader>
+        
         <div className="grid gap-4 py-4">
-         { (user?.role === 'admin' || user?.role === 'librarian') && (
+          {/* Member ID Input (for admin/librarian only) */}
+          {(user?.role === 'admin' || user?.role === 'librarian') && (
             <div className="space-y-2">
-                <Label htmlFor="user">Reader</Label>
-                <Select onValueChange={setSelectedUserId} value={selectedUserId}>
-                <SelectTrigger id="user">
-                    <SelectValue placeholder="Select a reader" />
-                </SelectTrigger>
-                <SelectContent>
-                    {readers.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                    </SelectItem>
-                    ))}
-                </SelectContent>
-                </Select>
+              <Label htmlFor="member-id">ID Thành Viên</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="member-id"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Nhập hoặc quét ID..."
+                  value={memberId}
+                  onChange={(e) => {
+                    // Only allow numbers
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    setMemberId(value);
+                  }}
+                  className="pl-10"
+                  autoComplete="off"
+                />
+              </div>
+              {memberId && !selectedReader && (
+                <p className="text-sm text-destructive">Không tìm thấy bạn đọc với ID này</p>
+              )}
             </div>
           )}
+
+          {/* Auto-filled Reader Info (Read-only) */}
+          {selectedReader && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="reader-name">Tên bạn đọc</Label>
+                <Input
+                  id="reader-name"
+                  value={selectedReader.name}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="reader-email">Email</Label>
+                <Input
+                  id="reader-email"
+                  value={selectedReader.email}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="reader-phone">Số điện thoại</Label>
+                <Input
+                  id="reader-phone"
+                  value={selectedReader.phone || "Chưa có"}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Due Date */}
           <div className="space-y-2">
-            <Label htmlFor="due-date">Return Date</Label>
-            <Input
-              id="due-date"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
+            <Label htmlFor="due-date">Ngày trả</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !dueDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dueDate ? (
+                    format(dueDate, "dd/MM/yyyy (EEEE)", { locale: vi })
+                  ) : (
+                    <span>Chọn ngày trả sách</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDate}
+                  onSelect={setDueDate}
+                  disabled={(date) => {
+                    const tomorrow = addDays(new Date(), 1);
+                    const maxDate = addDays(new Date(), 90);
+                    return date < tomorrow || date > maxDate;
+                  }}
+                  initialFocus
+                  locale={vi}
+                />
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              Chọn từ ngày mai đến tối đa 90 ngày
+            </p>
           </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="secondary">
-              Cancel
+              Hủy
             </Button>
           </DialogClose>
           <Button
             onClick={handleConfirmBorrow}
-            disabled={!selectedUserId || !dueDate}
+            disabled={!selectedReader || !dueDate}
           >
-            Confirm Borrow
+            Xác nhận mượn
           </Button>
         </DialogFooter>
       </DialogContent>

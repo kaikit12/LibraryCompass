@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, increment, arrayRemove, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
-import { differenceInDays } from 'date-fns';
+import { doc, runTransaction, increment, arrayRemove, collection, query, where, getDocs, orderBy, updateDoc, serverTimestamp, addDoc, Timestamp } from 'firebase/firestore';
+import { differenceInDays, addDays } from 'date-fns';
 import { createNotification } from '@/lib/notifications';
 
 const DEFAULT_LATE_FEE_PER_DAY = 1.00; // Default $1 per day if not specified on the book
+const MAX_LATE_DAYS = 90; // Cap at 90 days
+const MAX_LATE_FEE = 50.00; // Maximum late fee of $50
 
 export async function POST(request: Request) {
   try {
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
     let lateFee = 0;
     let daysLate = 0;
     let bookTitle = '';
-    let transactionId: string | null = null;
+  // note: transaction document id can be inferred from Firestore if needed; not used here
 
     await runTransaction(db, async (transaction) => {
         const bookRef = doc(db, 'books', bookId);
@@ -59,8 +61,12 @@ export async function POST(request: Request) {
 
         daysLate = differenceInDays(returnDate, dueDate);
         if (daysLate > 0) {
+          // Cap days late at maximum
+          const cappedDaysLate = Math.min(daysLate, MAX_LATE_DAYS);
           const lateFeePerDay = bookData.lateFeePerDay || DEFAULT_LATE_FEE_PER_DAY;
-          lateFee = daysLate * lateFeePerDay;
+          
+          // Calculate fee and cap at maximum
+          lateFee = Math.min(cappedDaysLate * lateFeePerDay, MAX_LATE_FEE);
         }
 
         // Perform writes
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
             status: 'Available'
         });
 
-        const userUpdate: { [key: string]: any } = {
+  const userUpdate: any = {
             booksOut: increment(-1),
             borrowedBooks: arrayRemove(bookId),
         };
@@ -77,7 +83,6 @@ export async function POST(request: Request) {
             userUpdate.lateFees = increment(lateFee);
             
             const transactionRef = doc(collection(db, 'transactions'));
-            transactionId = transactionRef.id;
             transaction.set(transactionRef, {
               userId,
               bookId,
@@ -108,9 +113,94 @@ export async function POST(request: Request) {
     // Send notification
     await createNotification(userId, { message: notifMessage, type: notifType });
 
+    // Check for reservations and auto-assign to next person in queue
+    await handleReservationQueue(bookId, bookTitle);
+
     return NextResponse.json({ success: true, message });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Return API error:", error);
-    return NextResponse.json({ success: false, message: error.message || 'An unexpected error occurred.' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    return NextResponse.json({ success: false, message: message }, { status: 500 });
   }
 }
+
+// Helper function to handle reservation queue when book is returned
+async function handleReservationQueue(bookId: string, bookTitle: string) {
+  try {
+    // Get the first active reservation in queue (ordered by createdAt)
+    const reservationsQuery = query(
+      collection(db, 'reservations'),
+      where('bookId', '==', bookId),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'asc')
+    );
+    
+    const reservationsSnapshot = await getDocs(reservationsQuery);
+    
+    if (reservationsSnapshot.empty) {
+      return; // No reservations, nothing to do
+    }
+
+    const firstReservation = reservationsSnapshot.docs[0];
+    const reservationData = firstReservation.data();
+    const reservationRef = firstReservation.ref;
+
+    // Calculate expiration time (48 hours from now)
+    const expirationDate = addDays(new Date(), 2);
+
+    // Mark reservation as fulfilled
+    await updateDoc(reservationRef, {
+      status: 'fulfilled',
+      notifiedAt: serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expirationDate),
+    });
+
+    // Update book's reservation count
+    const bookRef = doc(db, 'books', bookId);
+    await updateDoc(bookRef, {
+      reservationCount: increment(-1),
+    });
+
+    // Update positions for remaining reservations
+    const remainingReservations = reservationsSnapshot.docs.slice(1);
+    const updatePromises = remainingReservations.map((doc, index) => 
+      updateDoc(doc.ref, { position: index + 1 })
+    );
+    await Promise.all(updatePromises);
+
+    // Notify the user their reserved book is available
+    await addDoc(collection(db, 'notifications'), {
+      userId: reservationData.userId,
+      message: `📚 Sách "${bookTitle}" đã sẵn sàng! Bạn có 48 giờ để mượn sách.`,
+      type: 'success',
+      createdAt: serverTimestamp(),
+      isRead: false,
+    });
+
+    // Send email notification
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'reservation-ready',
+          to: reservationData.userEmail,
+          data: {
+            userName: reservationData.userName,
+            bookTitle: bookTitle,
+            expiresAt: expirationDate,
+          },
+        }),
+      });
+    } catch (emailError) {
+      console.error('Failed to send reservation ready email:', emailError);
+      // Don't fail the entire operation if email fails
+    }
+
+    console.log(`Assigned book "${bookTitle}" to user ${reservationData.userName} from reservation queue`);
+  } catch (error) {
+    console.error('Error handling reservation queue:', error);
+    // Don't throw - we don't want to fail the return if reservation handling fails
+  }
+}
+

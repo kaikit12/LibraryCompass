@@ -4,64 +4,110 @@
 
 @layer base {
   :root {
-    --background: 48 33% 95%;
-    --foreground: 210 29% 24%;
-    --card: 45 33% 97%;
-    --card-foreground: 210 29% 24%;
-    --popover: 45 33% 97%;
-    --popover-foreground: 210 29% 24%;
-    --primary: 210 29% 24%;
-    --primary-foreground: 48 33% 95%;
-    --secondary: 210 25% 90%;
-    --secondary-foreground: 210 29% 24%;
-    --muted: 210 25% 94%;
-    --muted-foreground: 210 20% 45%;
-    --accent: 206 82% 56%;
+    /* Modern color palette inspired by Vercel, Linear, and Stripe */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    
+    /* Primary: Deep indigo/purple (sophisticated, professional) */
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary: Soft slate gray */
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    
+    /* Accent: Vibrant cyan/blue (energetic, modern) */
+    --accent: 199 89% 48%;
     --accent-foreground: 0 0% 100%;
+    
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 210 20% 85%;
-    --input: 210 20% 88%;
-    --ring: 206 82% 56%;
-    --radius: 0.5rem;
-    --sidebar-background: 210 29% 20%;
-    --sidebar-foreground: 210 20% 85%;
-    --sidebar-primary: 206 82% 66%;
-    --sidebar-primary-foreground: 210 29% 15%;
-    --sidebar-accent: 210 29% 25%;
-    --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 210 29% 30%;
-    --sidebar-ring: 206 82% 66%;
+    
+    /* Success: Green for available books */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    /* Warning: Amber for overdue */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 262 83% 58%;
+    --radius: 0.75rem;
+    
+    /* Sidebar: Dark purple gradient */
+    --sidebar-background: 262 45% 12%;
+    --sidebar-foreground: 240 5% 96%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 262 35% 18%;
+    --sidebar-accent-foreground: 240 5% 96%;
+    --sidebar-border: 262 25% 20%;
+    --sidebar-ring: 262 83% 58%;
+
+    /* Global font */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  body, .font-body, .font-headline {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
   }
 
   .dark {
-    --background: 210 29% 15%;
-    --foreground: 60 50% 91%;
-    --card: 210 29% 20%;
-    --card-foreground: 60 50% 91%;
-    --popover: 210 29% 20%;
-    --popover-foreground: 60 50% 91%;
-    --primary: 60 56% 91%;
-    --primary-foreground: 210 29% 29%;
-    --secondary: 210 30% 30%;
-    --secondary-foreground: 60 50% 91%;
-    --muted: 210 30% 25%;
-    --muted-foreground: 60 50% 65%;
-    --accent: 210 98% 73%;
-    --accent-foreground: 210 29% 20%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    
+    --card: 240 10% 7%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 240 10% 7%;
+    --popover-foreground: 0 0% 98%;
+    
+    /* Primary: Bright purple for dark mode */
+    --primary: 263 70% 65%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    
+    /* Accent: Bright cyan for dark mode */
+    --accent: 199 89% 58%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 62.8% 50.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 210 29% 35%;
-    --input: 210 29% 25%;
-    --ring: 210 98% 73%;
-    --sidebar-background: 210 29% 20%;
-    --sidebar-foreground: 60 50% 85%;
-    --sidebar-primary: 210 98% 73%;
-    --sidebar-primary-foreground: 210 29% 20%;
-    --sidebar-accent: 210 29% 25%;
-    --sidebar-accent-foreground: 60 56% 91%;
-    --sidebar-border: 210 29% 30%;
-    --sidebar-ring: 210 98% 73%;
+    
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 60%;
+    --warning-foreground: 0 0% 100%;
+    
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 263 70% 65%;
+    
+    --sidebar-background: 240 10% 5%;
+    --sidebar-foreground: 240 5% 90%;
+    --sidebar-primary: 263 70% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 12%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 3.7% 12%;
+    --sidebar-ring: 263 70% 65%;
   }
 }
 
@@ -71,5 +117,33 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom gradient backgrounds */
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(262, 83%, 58%) 0%, hsl(199, 89%, 48%) 100%);
+  }
+  
+  .gradient-card {
+    background: linear-gradient(135deg, hsl(0, 0%, 100%) 0%, hsl(240, 4.8%, 98%) 100%);
+  }
+  
+  .dark .gradient-card {
+    background: linear-gradient(135deg, hsl(240, 10%, 7%) 0%, hsl(240, 10%, 10%) 100%);
+  }
+  
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .dark .glass-effect {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 }

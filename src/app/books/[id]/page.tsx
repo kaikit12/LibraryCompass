@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookCopy, CheckCircle, XCircle, ArrowLeft, Users } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { BorrowDialog } from "@/components/books/borrow-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -83,7 +84,7 @@ export default function BookDetailPage() {
     const userWithBook = readers.find(reader => (reader.borrowedBooks ?? []).includes(book.id));
     
     if (!userWithBook) {
-      toast({ variant: 'destructive', title: '❌ Return failed', description: "Could not find a reader who has this book borrowed."});
+      toast({ variant: 'destructive', title: '❌ Trả sách thất bại', description: "Không tìm thấy bạn đọc đang mượn sách này."});
       return;
     }
     
@@ -96,9 +97,10 @@ export default function BookDetailPage() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message);
 
-        toast({ title: '✅ Return successful!', description: data.message});
-    } catch (error: any) {
-         toast({ variant: 'destructive', title: '❌ Return failed', description: error.message});
+      toast({ title: '✅ Trả sách thành công!', description: data.message});
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Lỗi không xác định';
+    toast({ variant: 'destructive', title: '❌ Trả sách thất bại', description: message});
     }
   };
 
@@ -127,10 +129,10 @@ export default function BookDetailPage() {
   if (!book) {
     return (
         <div className="text-center">
-            <h1 className="text-2xl font-bold">Book Not Found</h1>
-            <p className="text-muted-foreground">The book you are looking for does not exist.</p>
+      <h1 className="text-2xl font-bold">Không tìm thấy sách</h1>
+      <p className="text-muted-foreground">Cuốn sách bạn tìm không tồn tại.</p>
             <Button asChild className="mt-4">
-                <Link href="/books"><ArrowLeft className="mr-2 h-4 w-4" />Back to Books</Link>
+        <Link href="/books"><ArrowLeft className="mr-2 h-4 w-4" />Quay lại Kho sách</Link>
             </Button>
         </div>
     );
@@ -139,15 +141,14 @@ export default function BookDetailPage() {
   const isBorrowable = book.status === 'Available' && book.available > 0;
   const showReturnButton = currentUser && (currentUser.role === 'admin' || currentUser.role === 'librarian');
   const isReturnable = showReturnButton && book.available < book.quantity;
-  const currentUserRole = currentUser?.role;
 
   return (
     <div className="max-w-2xl mx-auto">
         <div className="mb-6">
             <Button asChild variant="outline" size="sm">
-                <Link href="/books">
+        <Link href="/books">
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to All Books
+          Quay lại tất cả sách
                 </Link>
             </Button>
         </div>
@@ -155,16 +156,18 @@ export default function BookDetailPage() {
       <Card>
         {book.imageUrl && (
             <div className="relative h-64 w-full">
-                <img
-                    src={book.imageUrl}
-                    alt={`Cover of ${book.title}`}
-                    className="object-cover w-full h-full rounded-t-lg"
-                />
+        <Image
+          src={book.imageUrl}
+          alt={`Ảnh bìa ${book.title}`}
+          fill
+          className="object-cover rounded-t-lg"
+          sizes="(max-width: 768px) 100vw, 768px"
+        />
             </div>
         )}
         <CardHeader className={!book.imageUrl ? '' : 'pt-6'}>
           <CardTitle className="font-headline text-3xl">{book.title}</CardTitle>
-          <CardDescription>By {book.author}</CardDescription>
+          <CardDescription>Tác giả {book.author}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
             <div className="flex justify-between items-center">
@@ -174,7 +177,7 @@ export default function BookDetailPage() {
                 </div>
                 <div className="text-right">
                     <div className="font-bold text-lg">{book.available} / {book.quantity}</div>
-                    <div className="text-sm text-muted-foreground">Available</div>
+                    <div className="text-sm text-muted-foreground">Có sẵn</div>
                 </div>
             </div>
 
@@ -184,25 +187,25 @@ export default function BookDetailPage() {
 
             <div className="flex items-center gap-2">
                 { isBorrowable ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" /> }
-                <span className={`font-medium ${isBorrowable ? 'text-foreground' : 'text-muted-foreground'}`}>
-                   Status: {book.status}
+        <span className={`font-medium ${isBorrowable ? 'text-foreground' : 'text-muted-foreground'}`}>
+           Trạng thái: {book.status === 'Available' ? 'Có sẵn' : book.status === 'Borrowed' ? 'Đang mượn' : book.status}
                 </span>
             </div>
             
             <div className="pt-4 border-t">
               {showReturnButton ? (
                   <div className="flex gap-4">
-                      <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="flex-1">
-                          <BookCopy className="mr-2" /> Borrow
+            <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="flex-1">
+              <BookCopy className="mr-2" /> Mượn
                       </Button>
-                      <Button onClick={handleReturnBook} disabled={!isReturnable} variant="outline" className="flex-1">
-                          <Users className="mr-2" /> Return
+            <Button onClick={handleReturnBook} disabled={!isReturnable} variant="outline" className="flex-1">
+              <Users className="mr-2" /> Trả
                       </Button>
                   </div>
               ) : (
-                  <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="w-full">
-                      <BookCopy className="mr-2" /> 
-                      {currentUser ? 'Borrow This Book' : 'Login to Borrow'}
+          <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="w-full">
+            <BookCopy className="mr-2" /> 
+            {currentUser ? 'Mượn cuốn sách này' : 'Đăng nhập để mượn'}
                   </Button>
               )}
             </div>

@@ -7,13 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, format, isPast } from 'date-fns';
-import { Bell } from 'lucide-react';
+import { vi } from 'date-fns/locale';
+import { Bell, Check } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { createNotification } from '@/lib/notifications';
 
 interface OverdueEntry {
   userId: string;
+  bookId: string;
   bookTitle: string;
   userName: string;
   dueDate: string;
@@ -41,9 +43,9 @@ export default function OverdueBooks() {
                 const newOverdueEntries: OverdueEntry[] = [];
                 const today = new Date();
 
-                borrowalsSnapshot.forEach(doc => {
-                    const borrowalData = doc.data();
-                    const dueDate = borrowalData.dueDate.toDate();
+        borrowalsSnapshot.forEach(doc => {
+          const borrowalData = doc.data();
+          const dueDate = borrowalData.dueDate.toDate();
                     
                     if (isPast(dueDate)) {
                         const user = readersMap.get(borrowalData.userId);
@@ -51,13 +53,14 @@ export default function OverdueBooks() {
                         
                         if (user && book) {
                             const daysOverdue = differenceInDays(today, dueDate);
-                            newOverdueEntries.push({
-                                userId: borrowalData.userId, // Directly use the ID from the borrowal record
-                                bookTitle: book.title,
-                                userName: user.name,
-                                dueDate: format(dueDate, 'PPP'),
-                                daysOverdue: daysOverdue > 0 ? daysOverdue : 1, // Show at least 1 day overdue
-                            });
+              newOverdueEntries.push({
+                userId: borrowalData.userId, // Directly use the ID from the borrowal record
+                bookId: borrowalData.bookId,
+                bookTitle: book.title,
+                userName: user.name,
+                                dueDate: format(dueDate, 'PPP', { locale: vi }),
+                daysOverdue: daysOverdue > 0 ? daysOverdue : 1, // Show at least 1 day overdue
+              });
                         }
                     }
                 });
@@ -78,51 +81,70 @@ export default function OverdueBooks() {
       if (!entry.userId) {
           toast({ 
             variant: 'destructive', 
-            title: '❌ Error', 
-            description: 'User ID is missing. Cannot send notification.' 
+            title: 'Lỗi', 
+            description: 'Thiếu mã người dùng. Không thể gửi thông báo.' 
           });
           return;
       }
       
       try {
         await createNotification(entry.userId, {
-            message: `Your borrowed book "${entry.bookTitle}" is ${entry.daysOverdue} days overdue. Please return it as soon as possible.`,
+            message: `Sách "${entry.bookTitle}" bạn mượn đã quá hạn ${entry.daysOverdue} ngày. Vui lòng trả sớm nhất có thể.`,
             type: 'warning'
         });
         
         toast({
-            title: '✅ Reminder Sent',
-            description: `A notification has been sent to ${entry.userName}.`,
+            title: 'Đã gửi nhắc nhở',
+            description: `Đã gửi thông báo tới ${entry.userName}.`,
         });
 
-      } catch (error: any) {
+      } catch (error: unknown) {
+           const message = error instanceof Error ? error.message : 'Không thể gửi thông báo.';
            toast({ 
             variant: 'destructive', 
-            title: '❌ Error', 
-            description: error.message || 'Could not send notification.' 
+            title: 'Lỗi', 
+            description: message
         });
       }
+  };
+
+  const handleConfirmReturn = async (entry: OverdueEntry) => {
+    try {
+      const res = await fetch('/api/return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookId: entry.bookId, userId: entry.userId })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.message || 'Trả sách thất bại.');
+      }
+      toast({ title: 'Đã xác nhận trả sách', description: `"${entry.bookTitle}" đã được trả.` });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Có lỗi xảy ra khi trả sách.';
+      toast({ variant: 'destructive', title: 'Lỗi', description: message });
+    }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Overdue Books</CardTitle>
-        <CardDescription>Books that are past their due date.</CardDescription>
+        <CardTitle className="font-headline">Sách quá hạn</CardTitle>
+        <CardDescription>Danh sách sách đã quá hạn trả.</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="text-center text-muted-foreground p-8">Loading...</div>
+          <div className="text-center text-muted-foreground p-8">Đang tải...</div>
         ) : overdueEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Book Title</TableHead>
-                  <TableHead>Borrowed By</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Days Overdue</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead>Tiêu đề</TableHead>
+                  <TableHead>Người mượn</TableHead>
+                  <TableHead>Ngày đến hạn</TableHead>
+                  <TableHead>Số ngày trễ</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -132,13 +154,19 @@ export default function OverdueBooks() {
                     <TableCell>{entry.userName}</TableCell>
                     <TableCell>{entry.dueDate}</TableCell>
                     <TableCell>
-                      <Badge variant="destructive">{entry.daysOverdue} days</Badge>
+                      <Badge variant="destructive">{entry.daysOverdue} ngày</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleNotify(entry)}>
-                        <Bell className="mr-2 h-4 w-4" />
-                        Notify
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleNotify(entry)}>
+                          <Bell className="mr-2 h-4 w-4" />
+                          Nhắc nhở
+                        </Button>
+                        <Button variant="default" size="sm" onClick={() => handleConfirmReturn(entry)}>
+                          <Check className="mr-2 h-4 w-4" />
+                          Xác nhận trả
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -147,7 +175,7 @@ export default function OverdueBooks() {
           </div>
         ) : (
           <div className="text-center text-muted-foreground p-8">
-            No overdue books. Great job!
+            Không có sách quá hạn.
           </div>
         )}
       </CardContent>

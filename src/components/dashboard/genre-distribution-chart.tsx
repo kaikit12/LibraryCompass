@@ -66,7 +66,7 @@ export function GenreDistributionChart() {
     if (data.length === 0 && !loading) {
         return (
             <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                No books are currently borrowed to show genre data.
+                Không có dữ liệu thể loại vì chưa có sách nào đang được mượn.
             </div>
         )
     }
