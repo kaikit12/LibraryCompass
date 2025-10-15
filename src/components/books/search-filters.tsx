@@ -23,6 +23,7 @@ export interface SearchFiltersState {
   isbn: string;
   sortBy: string;
   minRating: string;
+  series: string; // New: Filter by series
 }
 
 interface SearchFiltersProps {
@@ -31,6 +32,7 @@ interface SearchFiltersProps {
   activeFiltersCount: number;
   onQRScanClick?: () => void;
   showQRButton?: boolean;
+  availableSeries?: string[]; // List of series names from books
 }
 
 export function SearchFilters({ 
@@ -39,6 +41,7 @@ export function SearchFilters({
   activeFiltersCount,
   onQRScanClick,
   showQRButton = false,
+  availableSeries = [],
 }: SearchFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -55,6 +58,7 @@ export function SearchFilters({
       isbn: '',
       sortBy: 'newest',
       minRating: '0',
+      series: 'all',
     });
   };
 
@@ -155,6 +159,7 @@ export function SearchFilters({
                 <SelectItem value="rating">Đánh giá cao</SelectItem>
                 <SelectItem value="title-asc">Tên A-Z</SelectItem>
                 <SelectItem value="title-desc">Tên Z-A</SelectItem>
+                <SelectItem value="series-order">Theo bộ sách</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -169,7 +174,27 @@ export function SearchFilters({
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="series">Bộ sách</Label>
+                <Select
+                  value={filters.series}
+                  onValueChange={(value) => updateFilter('series', value)}
+                >
+                  <SelectTrigger id="series">
+                    <SelectValue placeholder="Tất cả bộ sách" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="all">Tất cả bộ sách</SelectItem>
+                    {availableSeries.map((seriesName) => (
+                      <SelectItem key={seriesName} value={seriesName}>
+                        📚 {seriesName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="isbn">ISBN</Label>
                 <Input

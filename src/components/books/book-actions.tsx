@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles, Loader2, LayoutGrid, Table as TableIcon, Scan, X } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles, Loader2, LayoutGrid, Table as TableIcon, Scan, X, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot, query, where, getDocs } from "firebase/firestore";
@@ -30,6 +30,7 @@ import Image from "next/image";
 import { BookCardView } from "./book-card-view";
 import { SearchFilters, SearchFiltersState } from "./search-filters";
 import { BarcodeScanner } from "./barcode-scanner";
+import { SeriesView } from "./series-view";
 
 interface BookActionsProps {
   highlightedBookId?: string | null;
@@ -49,8 +50,9 @@ export function BookActions() {
     isbn: '',
     sortBy: 'newest',
     minRating: '0',
+    series: 'all',
   });
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
+  const [viewMode, setViewMode] = useState<'table' | 'card' | 'series'>('card');
   const { toast } = useToast();
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
@@ -109,6 +111,10 @@ export function BookActions() {
     });
   }, [readers, books]);
 
+  // Calculate available series for filtering
+  const availableSeries = useMemo(() => {
+    return Array.from(new Set(books.map(b => b.series).filter(Boolean))) as string[];
+  }, [books]);
 
   const filteredBooks = useMemo(() => {
     let result = books.filter(book => {
@@ -135,7 +141,10 @@ export function BookActions() {
       const ratingMatch = parseFloat(filters.minRating) === 0 || 
                          (book.rating && book.rating >= parseFloat(filters.minRating));
       
-      return searchMatch && statusMatch && genreMatch && isbnMatch && yearMatch && ratingMatch;
+      // Series filter
+      const seriesMatch = filters.series === 'all' || book.series === filters.series;
+      
+      return searchMatch && statusMatch && genreMatch && isbnMatch && yearMatch && ratingMatch && seriesMatch;
     });
 
     // Sorting
@@ -158,6 +167,16 @@ export function BookActions() {
       case 'title-desc':
         result.sort((a, b) => b.title.localeCompare(a.title));
         break;
+      case 'series-order':
+        result.sort((a, b) => {
+          // First sort by series name
+          if (a.series !== b.series) {
+            return (a.series || '').localeCompare(b.series || '');
+          }
+          // Then sort by order within the series
+          return (a.seriesOrder || 0) - (b.seriesOrder || 0);
+        });
+        break;
       default:
         break;
     }
@@ -173,6 +192,7 @@ export function BookActions() {
     if (filters.isbn) count++;
     if (filters.publicationYear) count++;
     if (parseFloat(filters.minRating) > 0) count++;
+    if (filters.series !== 'all') count++;
     return count;
   }, [filters]);
 
@@ -485,28 +505,40 @@ export function BookActions() {
         activeFiltersCount={activeFiltersCount}
         showQRButton={currentUserRole === 'admin' || currentUserRole === 'librarian'}
         onQRScanClick={() => setIsQRScannerOpen(true)}
+        availableSeries={availableSeries}
       />
 
       <Card>
       <CardContent className="pt-6">
         <div className="flex flex-col md:flex-row gap-4 justify-between mb-4 flex-wrap">
             <div className="flex gap-2 flex-shrink-0">
-                <div className="flex gap-1 border rounded-md">
+                <div className="flex gap-0 border rounded-md">
                     <Button 
                         onClick={() => setViewMode('card')} 
                         variant={viewMode === 'card' ? 'default' : 'ghost'} 
                         size="sm"
-                        className="rounded-r-none"
+                        className="rounded-r-none border-r"
                     >
-                        <LayoutGrid className="h-4 w-4" />
+                        <LayoutGrid className="h-4 w-4 mr-1" />
+                        <span className="hidden sm:inline">Thẻ</span>
                     </Button>
                     <Button 
                         onClick={() => setViewMode('table')} 
                         variant={viewMode === 'table' ? 'default' : 'ghost'} 
                         size="sm"
+                        className="rounded-none border-r"
+                    >
+                        <TableIcon className="h-4 w-4 mr-1" />
+                        <span className="hidden sm:inline">Bảng</span>
+                    </Button>
+                    <Button 
+                        onClick={() => setViewMode('series')} 
+                        variant={viewMode === 'series' ? 'default' : 'ghost'} 
+                        size="sm"
                         className="rounded-l-none"
                     >
-                        <TableIcon className="h-4 w-4" />
+                        <BookOpen className="h-4 w-4 mr-1" />
+                        <span className="hidden sm:inline">Bộ sách</span>
                     </Button>
                 </div>
                 <Button onClick={() => setIsRecoDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
@@ -525,7 +557,16 @@ export function BookActions() {
             </div>
         </div>
 
-        {viewMode === 'card' ? (
+        {viewMode === 'series' ? (
+          <SeriesView 
+            books={filteredBooks}
+            onBookClick={(book) => {
+              setSelectedBook(book);
+              setIsBorrowOpen(true);
+            }}
+            userBorrowedBooks={user?.borrowingHistory || []}
+          />
+        ) : viewMode === 'card' ? (
           <BookCardView 
             books={filteredBooks}
             onBorrowClick={handleOpenBorrow}
@@ -728,227 +769,339 @@ export function BookActions() {
 
         {/* Add/Edit Dialog */}
         <Dialog open={isAddEditOpen} onOpenChange={(open) => !open && resetDialogState()}>
-          <DialogContent className="sm:max-w-[580px] max-h-[90vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>{editingBook?.id ? 'Chỉnh sửa sách' : 'Thêm sách mới'}</DialogTitle>
-              <DialogDescription>
-                {editingBook?.id ? 'Cập nhật thông tin của cuốn sách này.' : 'Nhập thông tin cho cuốn sách mới.'}
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b">
+              <DialogTitle className="text-xl flex items-center gap-2">
+                {editingBook?.id ? '✏️ Chỉnh sửa sách' : '➕ Thêm sách mới'}
+              </DialogTitle>
+              <DialogDescription className="text-sm">
+                {editingBook?.id ? 'Cập nhật thông tin của cuốn sách này.' : 'Điền đầy đủ thông tin để thêm sách vào thư viện.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4 overflow-y-auto px-1">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="title" className="text-right">Tiêu đề</Label>
-                <Input id="title" value={editingBook?.title || ''} onChange={e => setEditingBook({...editingBook, title: e.target.value})} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="author" className="text-right">Tác giả</Label>
-                <Input id="author" value={editingBook?.author || ''} onChange={e => setEditingBook({...editingBook, author: e.target.value})} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="description" className="text-right pt-2">Mô tả</Label>
-                  <div className="col-span-3 space-y-2">
-                      <Textarea id="description" value={editingBook?.description || ''} onChange={e => setEditingBook(prev => ({...prev, description: e.target.value }))} placeholder="Tóm tắt ngắn gọn về cuốn sách..." />
-                      <Button variant="outline" size="sm" onClick={handleGenerateDescription} disabled={isGeneratingDesc || !editingBook?.title || !editingBook?.author}>
-                          {isGeneratingDesc ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                          Tạo bằng AI
-                      </Button>
-                  </div>
-              </div>
-               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="libraryId" className="text-right">Mã thư viện</Label>
-                <div className="col-span-3 flex gap-2">
-                  <Input 
-                    id="libraryId" 
-                    value={editingBook?.libraryId || ''} 
-                    onChange={e => setEditingBook({...editingBook, libraryId: e.target.value})} 
-                    placeholder="Nhập mã hoặc nhấn 'Tự động'"
-                    className="flex-1"
-                  />
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={generateNextLibraryId}
-                    className="shrink-0"
-                  >
-                    Tự động
-                  </Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-start gap-4">
-                <Label className="text-right pt-2">Thể loại</Label>
-                <div className="col-span-3 space-y-2">
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {((editingBook?.genres || [editingBook?.genre]).filter((g): g is string => Boolean(g))).map((selectedGenre) => (
-                      <Badge key={selectedGenre} variant="secondary" className="gap-1">
-                        {selectedGenre}
-                        <X 
-                          className="h-3 w-3 cursor-pointer hover:text-red-500" 
-                          onClick={() => {
-                            const currentGenres = (editingBook?.genres || [editingBook?.genre]).filter((g): g is string => Boolean(g));
-                            const newGenres = currentGenres.filter(g => g !== selectedGenre);
-                            setEditingBook({
-                              ...editingBook, 
-                              genres: newGenres,
-                              genre: newGenres[0] || '' // Keep first genre for backward compatibility
-                            });
-                          }}
-                        />
-                      </Badge>
-                    ))}
-                    {(editingBook?.genres?.length === 0 || (!editingBook?.genres && !editingBook?.genre)) && (
-                      <span className="text-sm text-muted-foreground">Chưa chọn thể loại nào</span>
-                    )}
-                  </div>
-                  <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-2">
-                    {genres.map((genre) => {
-                      const currentGenres = (editingBook?.genres || [editingBook?.genre]).filter((g): g is string => Boolean(g));
-                      const isChecked = currentGenres.includes(genre);
-                      return (
-                        <div key={genre} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`genre-${genre}`}
-                            checked={isChecked}
-                            onCheckedChange={(checked) => {
-                              const currentGenres = (editingBook?.genres || [editingBook?.genre]).filter((g): g is string => Boolean(g));
-                              let newGenres: string[];
-                              if (checked) {
-                                newGenres = [...currentGenres, genre];
-                              } else {
-                                newGenres = currentGenres.filter(g => g !== genre);
-                              }
-                              setEditingBook({
-                                ...editingBook,
-                                genres: newGenres,
-                                genre: newGenres[0] || '' // Keep first genre for backward compatibility
-                              });
-                            }}
-                          />
-                          <label
-                            htmlFor={`genre-${genre}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          >
-                            {genre}
-                          </label>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {customGenre && (
+            
+            <div className="overflow-y-auto px-6 py-4 flex-1 space-y-6">
+              {/* Thông tin cơ bản */}
+              <div className="space-y-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 p-4 rounded-lg border border-blue-100 dark:border-blue-900">
+                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                  <span className="text-lg">📖</span>
+                  Thông tin cơ bản
+                </h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="title" className="text-right text-sm font-medium">Tiêu đề <span className="text-red-500">*</span></Label>
                     <Input 
-                      id="customGenre" 
-                      placeholder="Nhập thể loại tùy chỉnh (ngăn cách bằng dấu phẩy)" 
-                      value={customGenre} 
-                      onChange={e => setCustomGenre(e.target.value)} 
-                      className="mt-2"
+                      id="title" 
+                      value={editingBook?.title || ''} 
+                      onChange={e => setEditingBook({...editingBook, title: e.target.value})} 
+                      className="col-span-3 bg-white dark:bg-gray-950" 
+                      placeholder="Nhập tên sách..."
                     />
-                  )}
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="author" className="text-right text-sm font-medium">Tác giả <span className="text-red-500">*</span></Label>
+                    <Input 
+                      id="author" 
+                      value={editingBook?.author || ''} 
+                      onChange={e => setEditingBook({...editingBook, author: e.target.value})} 
+                      className="col-span-3 bg-white dark:bg-gray-950"
+                      placeholder="Nhập tên tác giả..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-3">
+                    <Label htmlFor="description" className="text-right pt-2 text-sm font-medium">Mô tả</Label>
+                    <div className="col-span-3 space-y-2">
+                      <Textarea 
+                        id="description" 
+                        value={editingBook?.description || ''} 
+                        onChange={e => setEditingBook(prev => ({...prev, description: e.target.value }))} 
+                        placeholder="Tóm tắt ngắn gọn về cuốn sách..." 
+                        rows={3}
+                        className="bg-white dark:bg-gray-950 resize-none"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleGenerateDescription} 
+                        disabled={isGeneratingDesc || !editingBook?.title || !editingBook?.author}
+                        className="w-full sm:w-auto"
+                      >
+                        {isGeneratingDesc ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Tạo mô tả bằng AI
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="isbn" className="text-right">ISBN</Label>
-                <Input 
-                  id="isbn" 
-                  placeholder="978-xxx-xxx-xxx-x" 
-                  value={editingBook?.isbn || ''} 
-                  onChange={e => setEditingBook({...editingBook, isbn: e.target.value})} 
-                  className="col-span-3" 
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="publicationYear" className="text-right">Năm XB</Label>
-                <Input 
-                  id="publicationYear" 
-                  type="number" 
-                  placeholder="2025" 
-                  min="1900"
-                  max={new Date().getFullYear()}
-                  value={editingBook?.publicationYear || ''} 
-                  onChange={e => setEditingBook({...editingBook, publicationYear: e.target.value ? Number(e.target.value) : undefined})} 
-                  className="col-span-3" 
-                />
+
+              {/* Phân loại & Mã định danh */}
+              <div className="space-y-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 p-4 rounded-lg border border-purple-100 dark:border-purple-900">
+                <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 flex items-center gap-2">
+                  <span className="text-lg">🏷️</span>
+                  Phân loại & Mã định danh
+                </h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="libraryId" className="text-right text-sm font-medium">Mã thư viện</Label>
+                    <div className="col-span-3 flex gap-2">
+                      <Input 
+                        id="libraryId" 
+                        value={editingBook?.libraryId || ''} 
+                        onChange={e => setEditingBook({...editingBook, libraryId: e.target.value})} 
+                        placeholder="VD: LIB-001"
+                        className="flex-1 bg-white dark:bg-gray-950"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="secondary" 
+                        onClick={generateNextLibraryId}
+                        className="shrink-0"
+                        size="sm"
+                      >
+                        <Sparkles className="h-4 w-4 mr-1" />
+                        Tự động
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-3">
+                    <Label className="text-right pt-2 text-sm font-medium">Thể loại <span className="text-red-500">*</span></Label>
+                    <div className="col-span-3 space-y-2">
+                      <div className="flex flex-wrap gap-1.5 mb-2 min-h-[36px] p-2 bg-white dark:bg-gray-950 border rounded-md">
+                        {editingBook && ((editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g))).map((selectedGenre) => (
+                          <Badge key={selectedGenre} variant="secondary" className="gap-1 text-xs">
+                            {selectedGenre}
+                            <X 
+                              className="h-3 w-3 cursor-pointer hover:text-red-500 transition-colors" 
+                              onClick={() => {
+                                const currentGenres = (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g));
+                                const newGenres = currentGenres.filter(g => g !== selectedGenre);
+                                setEditingBook({
+                                  ...editingBook, 
+                                  genres: newGenres,
+                                  genre: newGenres[0] || ''
+                                });
+                              }}
+                            />
+                          </Badge>
+                        ))}
+                        {(!editingBook || editingBook.genres?.length === 0 || (!editingBook.genres && !editingBook.genre)) && (
+                          <span className="text-xs text-muted-foreground italic">Chưa chọn thể loại nào</span>
+                        )}
+                      </div>
+                      <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-1.5 bg-white dark:bg-gray-950">
+                        {genres.map((genre) => {
+                          const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                          const isChecked = currentGenres.includes(genre);
+                          return (
+                            <div key={genre} className="flex items-center space-x-2 hover:bg-gray-50 dark:hover:bg-gray-900 p-1.5 rounded transition-colors">
+                              <Checkbox
+                                id={`genre-${genre}`}
+                                checked={isChecked}
+                                onCheckedChange={(checked) => {
+                                  const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                                  let newGenres: string[];
+                                  if (checked) {
+                                    newGenres = [...currentGenres, genre];
+                                  } else {
+                                    newGenres = currentGenres.filter(g => g !== genre);
+                                  }
+                                  setEditingBook({
+                                    ...editingBook,
+                                    genres: newGenres,
+                                    genre: newGenres[0] || ''
+                                  });
+                                }}
+                              />
+                              <label
+                                htmlFor={`genre-${genre}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                              >
+                                {genre}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {customGenre && (
+                        <Input 
+                          id="customGenre" 
+                          placeholder="Nhập thể loại tùy chỉnh (ngăn cách bằng dấu phẩy)" 
+                          value={customGenre} 
+                          onChange={e => setCustomGenre(e.target.value)} 
+                          className="bg-white dark:bg-gray-950"
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="isbn" className="text-right text-sm font-medium">ISBN</Label>
+                    <Input 
+                      id="isbn" 
+                      placeholder="978-xxx-xxx-xxx-x" 
+                      value={editingBook?.isbn || ''} 
+                      onChange={e => setEditingBook({...editingBook, isbn: e.target.value})} 
+                      className="col-span-3 bg-white dark:bg-gray-950" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="publicationYear" className="text-right text-sm font-medium">Năm XB</Label>
+                    <Input 
+                      id="publicationYear" 
+                      type="number" 
+                      placeholder="2025" 
+                      min="1900"
+                      max={new Date().getFullYear()}
+                      value={editingBook?.publicationYear || ''} 
+                      onChange={e => setEditingBook({...editingBook, publicationYear: e.target.value ? Number(e.target.value) : undefined})} 
+                      className="col-span-3 bg-white dark:bg-gray-950" 
+                    />
+                  </div>
+                </div>
               </div>
               
               {/* Series Management */}
-              <div className="col-span-4 border-t pt-4 mt-2">
-                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  📚 Quản lý bộ sách
-                  <Badge variant="outline" className="text-xs">Tùy chọn</Badge>
+              <div className="space-y-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 p-4 rounded-lg border border-green-100 dark:border-green-900">
+                <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 flex items-center gap-2">
+                  <span className="text-lg">📚</span>
+                  Quản lý bộ sách
+                  <Badge variant="outline" className="text-xs ml-auto">Tùy chọn</Badge>
                 </h4>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="series" className="text-right">Tên bộ sách</Label>
-                <Input 
-                  id="series" 
-                  placeholder="Ví dụ: Harry Potter" 
-                  value={editingBook?.series || ''} 
-                  onChange={e => setEditingBook({...editingBook, series: e.target.value})} 
-                  className="col-span-3" 
-                  list="series-suggestions"
-                />
-                <datalist id="series-suggestions">
-                  {Array.from(new Set(books.map(b => b.series).filter(Boolean))).map(s => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-              </div>
-              {editingBook?.series && (
-                <>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="seriesOrder" className="text-right">Tập thứ</Label>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="series" className="text-right text-sm font-medium">Tên bộ sách</Label>
                     <Input 
-                      id="seriesOrder" 
-                      type="number" 
-                      min="1"
-                      placeholder="1" 
-                      value={editingBook?.seriesOrder || ''} 
-                      onChange={e => setEditingBook({...editingBook, seriesOrder: e.target.value ? Number(e.target.value) : undefined})} 
-                      className="col-span-3" 
+                      id="series" 
+                      placeholder="Ví dụ: Harry Potter" 
+                      value={editingBook?.series || ''} 
+                      onChange={e => setEditingBook({...editingBook, series: e.target.value})} 
+                      className="col-span-3 bg-white dark:bg-gray-950" 
+                      list="series-suggestions"
+                    />
+                    <datalist id="series-suggestions">
+                      {Array.from(new Set(books.map(b => b.series).filter(Boolean))).map(s => (
+                        <option key={s} value={s} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {editingBook?.series && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="seriesOrder" className="text-sm font-medium whitespace-nowrap">Tập thứ:</Label>
+                          <Input 
+                            id="seriesOrder" 
+                            type="number" 
+                            min="1"
+                            placeholder="1" 
+                            value={editingBook?.seriesOrder || ''} 
+                            onChange={e => setEditingBook({...editingBook, seriesOrder: e.target.value ? Number(e.target.value) : undefined})} 
+                            className="flex-1 bg-white dark:bg-gray-950" 
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="totalInSeries" className="text-sm font-medium whitespace-nowrap">Tổng số:</Label>
+                          <Input 
+                            id="totalInSeries" 
+                            type="number" 
+                            min="1"
+                            placeholder="7" 
+                            value={editingBook?.totalInSeries || ''} 
+                            onChange={e => setEditingBook({...editingBook, totalInSeries: e.target.value ? Number(e.target.value) : undefined})} 
+                            className="flex-1 bg-white dark:bg-gray-950" 
+                          />
+                        </div>
+                      </div>
+                      {editingBook.seriesOrder && editingBook.totalInSeries && (
+                        <div className="text-sm font-medium text-center bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-900 dark:text-blue-100 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+                          📖 Tập <span className="font-bold text-lg">{editingBook.seriesOrder}</span>/{editingBook.totalInSeries} của bộ "<span className="font-semibold">{editingBook.series}</span>"
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {/* Quản lý số lượng & Giá */}
+              <div className="space-y-4 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 p-4 rounded-lg border border-orange-100 dark:border-orange-900">
+                <h4 className="text-sm font-semibold text-orange-900 dark:text-orange-100 flex items-center gap-2">
+                  <span className="text-lg">📊</span>
+                  Số lượng & Phí
+                </h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="quantity" className="text-sm font-medium">Số lượng sách</Label>
+                      <Input 
+                        id="quantity" 
+                        type="number" 
+                        min="1" 
+                        value={editingBook?.quantity || 1} 
+                        onChange={e => setEditingBook({...editingBook, quantity: Number(e.target.value)})} 
+                        className="bg-white dark:bg-gray-950" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lateFee" className="text-sm font-medium">Phí trễ/ngày (VNĐ)</Label>
+                      <Input 
+                        id="lateFee" 
+                        type="number" 
+                        min="0" 
+                        value={editingBook?.lateFeePerDay || 0} 
+                        onChange={e => setEditingBook({...editingBook, lateFeePerDay: Number(e.target.value)})} 
+                        className="bg-white dark:bg-gray-950" 
+                        disabled={currentUserRole !== 'admin'} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ảnh bìa */}
+              <div className="space-y-4 bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-950/20 dark:to-rose-950/20 p-4 rounded-lg border border-pink-100 dark:border-pink-900">
+                <h4 className="text-sm font-semibold text-pink-900 dark:text-pink-100 flex items-center gap-2">
+                  <span className="text-lg">🖼️</span>
+                  Ảnh bìa sách
+                </h4>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="imageUrl" className="text-sm font-medium">URL hình ảnh</Label>
+                    <Input 
+                      id="imageUrl" 
+                      value={editingBook?.imageUrl || ''} 
+                      onChange={e => setEditingBook({...editingBook, imageUrl: e.target.value})} 
+                      placeholder="https://example.com/book-cover.jpg" 
+                      className="bg-white dark:bg-gray-950"
                     />
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="totalInSeries" className="text-right">Tổng số tập</Label>
-                    <Input 
-                      id="totalInSeries" 
-                      type="number" 
-                      min="1"
-                      placeholder="7" 
-                      value={editingBook?.totalInSeries || ''} 
-                      onChange={e => setEditingBook({...editingBook, totalInSeries: e.target.value ? Number(e.target.value) : undefined})} 
-                      className="col-span-3" 
-                    />
-                  </div>
-                  {editingBook.seriesOrder && editingBook.totalInSeries && (
-                    <div className="col-span-4 text-sm text-muted-foreground text-center">
-                      Tập {editingBook.seriesOrder}/{editingBook.totalInSeries} của bộ "{editingBook.series}"
+                  {editingBook?.imageUrl && (
+                    <div className="relative w-full aspect-[3/4] max-w-xs mx-auto rounded-lg border-2 border-pink-200 dark:border-pink-800 bg-white dark:bg-gray-950 overflow-hidden shadow-lg">
+                      <Image 
+                        src={editingBook.imageUrl} 
+                        alt="Xem trước ảnh bìa" 
+                        fill 
+                        className="object-contain" 
+                        sizes="(max-width: 768px) 100vw, 384px" 
+                      />
                     </div>
                   )}
-                </>
-              )}
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="quantity" className="text-right">Số lượng</Label>
-                <Input id="quantity" type="number" value={editingBook?.quantity || 1} onChange={e => setEditingBook({...editingBook, quantity: Number(e.target.value)})} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="lateFee" className="text-right">Phí trễ/ngày</Label>
-                <Input id="lateFee" type="number" value={editingBook?.lateFeePerDay || 0} onChange={e => setEditingBook({...editingBook, lateFeePerDay: Number(e.target.value)})} className="col-span-3" disabled={currentUserRole !== 'admin'} />
-              </div>
-               <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="imageUrl" className="text-right pt-2">URL ảnh bìa</Label>
-                    <div className="col-span-3 space-y-2">
-                        <Input id="imageUrl" value={editingBook?.imageUrl || ''} onChange={e => setEditingBook({...editingBook, imageUrl: e.target.value})} className="col-span-3" placeholder="https://ví_dụ.com/anh-bia.jpg" />
-                        {editingBook?.imageUrl && (
-                             <div className="relative w-full aspect-video rounded border bg-muted">
-                                <Image src={editingBook.imageUrl} alt="Xem trước" fill className="object-contain rounded" sizes="(max-width: 768px) 100vw, 768px" />
-                             </div>
-                        )}
-                    </div>
                 </div>
+              </div>
             </div>
-            <DialogFooter className="mt-auto pt-4 border-t">
-              <Button type="button" variant="secondary" onClick={resetDialogState}>Hủy</Button>
-              <Button type="submit" onClick={handleSaveBook}>
-                Lưu thay đổi
+            
+            <DialogFooter className="px-6 py-4 border-t bg-gray-50 dark:bg-gray-900/50">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={resetDialogState}
+                className="min-w-[100px]"
+              >
+                Hủy bỏ
+              </Button>
+              <Button 
+                type="submit" 
+                onClick={handleSaveBook}
+                className="min-w-[100px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              >
+                {editingBook?.id ? '💾 Cập nhật' : '➕ Thêm sách'}
               </Button>
             </DialogFooter>
           </DialogContent>
