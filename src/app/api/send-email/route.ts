@@ -6,6 +6,7 @@ import {
   getReservationReadyEmailTemplate,
   getAppointmentConfirmedEmailTemplate,
   getRenewalApprovedEmailTemplate,
+  getInventoryAlertEmailTemplate,
 } from '@/lib/email-templates';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -39,6 +40,12 @@ export async function POST(request: NextRequest) {
         break;
       case 'renewal-approved':
         emailTemplate = getRenewalApprovedEmailTemplate(data);
+        break;
+      case 'low-stock':
+      case 'damaged':
+      case 'lost':
+      case 'test':
+        emailTemplate = getInventoryAlertEmailTemplate(type, data);
         break;
       default:
         return NextResponse.json(

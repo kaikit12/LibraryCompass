@@ -23,7 +23,8 @@ export interface SearchFiltersState {
   isbn: string;
   sortBy: string;
   minRating: string;
-  series: string; // New: Filter by series
+  series: string; // Filter by series
+  condition: string; // Filter by condition (good/damaged/lost)
 }
 
 interface SearchFiltersProps {
@@ -33,6 +34,7 @@ interface SearchFiltersProps {
   onQRScanClick?: () => void;
   showQRButton?: boolean;
   availableSeries?: string[]; // List of series names from books
+  customGenres?: string[]; // List of custom genres from database
 }
 
 export function SearchFilters({ 
@@ -42,6 +44,7 @@ export function SearchFilters({
   onQRScanClick,
   showQRButton = false,
   availableSeries = [],
+  customGenres = [],
 }: SearchFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -59,6 +62,7 @@ export function SearchFilters({
       sortBy: 'newest',
       minRating: '0',
       series: 'all',
+      condition: 'all',
     });
   };
 
@@ -123,11 +127,27 @@ export function SearchFilters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả thể loại</SelectItem>
+                
+                {/* Predefined genres */}
                 {genres.filter(Boolean).map((genre) => (
                   <SelectItem key={genre} value={genre}>
                     {genre}
                   </SelectItem>
                 ))}
+                
+                {/* Custom genres from database */}
+                {customGenres.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">
+                      Thể loại tùy chỉnh
+                    </div>
+                    {customGenres.map((genre) => (
+                      <SelectItem key={`custom-${genre}`} value={genre}>
+                        {genre} ✨
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -174,7 +194,8 @@ export function SearchFilters({
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* First Row */}
               <div className="space-y-2">
                 <Label htmlFor="series">Bộ sách</Label>
                 <Select
@@ -196,6 +217,39 @@ export function SearchFilters({
               </div>
               
               <div className="space-y-2">
+                <Label htmlFor="condition">Tình trạng sách</Label>
+                <Select
+                  value={filters.condition}
+                  onValueChange={(value) => updateFilter('condition', value)}
+                >
+                  <SelectTrigger id="condition">
+                    <SelectValue placeholder="Tất cả tình trạng" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả tình trạng</SelectItem>
+                    <SelectItem value="good">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-500">●</span>
+                        Tốt
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="damaged">
+                      <div className="flex items-center gap-2">
+                        <span className="text-yellow-500">●</span>
+                        Hư hỏng
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="lost">
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-500">●</span>
+                        Mất
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
                 <Label htmlFor="isbn">ISBN</Label>
                 <Input
                   id="isbn"
@@ -204,7 +258,9 @@ export function SearchFilters({
                   onChange={(e) => updateFilter('isbn', e.target.value)}
                 />
               </div>
-
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="publicationYear">Năm xuất bản</Label>
                 <Select

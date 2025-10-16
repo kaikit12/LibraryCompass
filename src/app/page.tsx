@@ -7,10 +7,12 @@ import { PageHeader } from '@/components/layout/page-header';
 import StatsCards from '@/components/dashboard/stats-cards';
 import OverdueBooks from '@/components/dashboard/overdue-books';
 import CurrentlyBorrowedBooks from '@/components/dashboard/currently-borrowed-books';
+import { LateFeeAccounts } from '@/components/dashboard/late-fee-accounts';
 import { GenreDistributionChart } from '@/components/dashboard/genre-distribution-chart';
 import { BorrowingTrendsChart } from '@/components/dashboard/borrowing-trends-chart';
 import { RenewalRequestsManager } from '@/components/books/renewal-requests-manager';
 import { AppointmentsManager } from '@/components/books/appointments-manager';
+import { LowStockAlerts } from '@/components/dashboard/low-stock-alerts';
 import { 
   MonthlyTrendsChart, 
   PeakHoursChart, 
@@ -59,6 +61,9 @@ export default function DashboardPage() {
 
       <StatsCards />
 
+      {/* Low Stock Alerts - Important section */}
+      <LowStockAlerts />
+
       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-7">
     <Card className="lg:col-span-4">
       <CardHeader>
@@ -103,6 +108,8 @@ export default function DashboardPage() {
   <RenewalRequestsManager />
 
   <AppointmentsManager />
+
+  <LateFeeAccounts />
 
   <OverdueBooks />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Reservation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Bookmark, Loader2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,68 +33,73 @@ export function MyReservations({ userId }: MyReservationsProps) {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (userId) {
-      loadReservations();
-    } else {
-      setIsLoading(false);
-    }
-  }, [userId]);
-
-  const loadReservations = async () => {
     if (!userId) {
       setIsLoading(false);
       return;
     }
-    
-    try {
-      const response = await fetch(`/api/reservations?userId=${userId}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+
+    // Use Firestore onSnapshot for real-time updates
+    const reservationsQuery = query(
+      collection(db, 'reservations'),
+      where('userId', '==', userId),
+      where('status', 'in', ['active', 'fulfilled'])
+    );
+
+    const unsubscribe = onSnapshot(reservationsQuery, (snapshot) => {
+      try {
+        const reservationsList = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate?.() || new Date(),
+            fulfilledAt: data.fulfilledAt?.toDate?.() || null,
+          } as Reservation;
+        });
+
+        // Sort by createdAt desc (newest first)
+        reservationsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        
+        setReservations(reservationsList);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error processing reservations:', error);
+        setReservations([]);
+        setIsLoading(false);
       }
-      
-      const data = await response.json();
-      
-      // Only show active and fulfilled reservations
-      const activeReservations = data.filter(
-        (r: Reservation) => r.status === 'active' || r.status === 'fulfilled'
-      );
-      setReservations(activeReservations);
-    } catch (error: any) {
-      console.error('Error loading reservations:', error);
-      // Don't show toast error on initial load - just show empty state
-      // This prevents annoying errors when user has no reservations
+    }, (error) => {
+      console.error('Error listening to reservations:', error);
       setReservations([]);
-    } finally {
       setIsLoading(false);
-    }
-  };
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể tải danh sách đặt trước từ cơ sở dữ liệu.',
+        variant: 'destructive',
+      });
+    });
+
+    return () => unsubscribe();
+  }, [userId, toast]);
 
   const handleCancelReservation = async (reservationId: string) => {
     setCancellingId(reservationId);
     try {
-      const response = await fetch(`/api/reservations?id=${reservationId}&userId=${userId}`, {
-        method: 'DELETE',
+      const reservationRef = doc(db, 'reservations', reservationId);
+      await updateDoc(reservationRef, {
+        status: 'cancelled',
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Không thể hủy đặt chỗ');
-      }
 
       toast({
         title: '✅ Đã hủy đặt chỗ',
         description: 'Đặt chỗ của bạn đã được hủy thành công',
       });
 
-      // Reload reservations
-      await loadReservations();
     } catch (error: any) {
+      console.error('Error cancelling reservation:', error);
       toast({
         variant: 'destructive',
         title: '❌ Hủy đặt chỗ thất bại',
-        description: error.message,
+        description: error.message || 'Không thể hủy đặt chỗ',
       });
     } finally {
       setCancellingId(null);

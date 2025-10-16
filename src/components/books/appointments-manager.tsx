@@ -5,11 +5,14 @@ import { Appointment } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Loader2, Check, X, Clock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Calendar, Loader2, Check, X, Clock, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-context';
 import { differenceInHours, format } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, increment, arrayUnion, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export function AppointmentsManager() {
   const { user } = useAuth();
@@ -17,61 +20,119 @@ export function AppointmentsManager() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [searchId, setSearchId] = useState('');
+
+  // Don't render if user doesn't have proper access
+  if (!user || (user.role !== 'admin' && user.role !== 'librarian')) {
+    return null;
+  }
 
   useEffect(() => {
-    loadAppointments();
-    // Auto-refresh every minute to check for expired appointments
-    const interval = setInterval(loadAppointments, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    // Only load appointments if user is authenticated and has proper role
+    if (user && (user.role === 'admin' || user.role === 'librarian')) {
+      // Use Firestore onSnapshot for real-time updates
+      const appointmentsQuery = query(
+        collection(db, 'appointments'),
+        where('status', '==', 'pending')
+      );
 
-  const loadAppointments = async () => {
-    try {
-      const response = await fetch('/api/appointments?status=pending');
-      if (!response.ok) throw new Error('Failed to fetch appointments');
-      
-      const data = await response.json();
-      setAppointments(data);
-    } catch (error) {
-      console.error('Error loading appointments:', error);
-    } finally {
+      const unsubscribe = onSnapshot(appointmentsQuery, (snapshot) => {
+        try {
+          const appointmentsList = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              pickupTime: data.pickupTime?.toDate?.() || new Date(),
+              createdAt: data.createdAt?.toDate?.() || new Date(),
+              confirmedAt: data.confirmedAt?.toDate?.() || null,
+            } as Appointment;
+          });
+
+          // Sort by pickupTime asc (soonest first)
+          appointmentsList.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
+          
+          setAppointments(appointmentsList);
+          setIsLoading(false);
+        } catch (error) {
+          console.error('Error processing appointments:', error);
+          setAppointments([]);
+          setIsLoading(false);
+        }
+      }, (error) => {
+        console.error('Error listening to appointments:', error);
+        setAppointments([]);
+        setIsLoading(false);
+        toast({
+          variant: 'destructive',
+          title: '❌ Lỗi',
+          description: 'Không thể tải danh sách lịch hẹn từ cơ sở dữ liệu.',
+        });
+      });
+
+      return () => unsubscribe();
+    } else {
       setIsLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const handleConfirm = async (appointment: Appointment) => {
     if (!user) return;
 
     setProcessingId(appointment.id);
     try {
-      const response = await fetch('/api/appointments', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appointmentId: appointment.id,
-          action: 'confirm',
-          confirmedBy: user.id,
-        }),
+      // Update appointment status
+      const appointmentRef = doc(db, 'appointments', appointment.id);
+      await updateDoc(appointmentRef, {
+        status: 'confirmed',
+        confirmedAt: new Date(),
+        confirmedBy: user.id,
       });
 
-      const data = await response.json();
+      // Create borrowal record
+      const borrowalData = {
+        bookId: appointment.bookId,
+        userId: appointment.userId,
+        bookTitle: appointment.bookTitle,
+        userName: appointment.userName,
+        userMemberId: appointment.userMemberId,
+        borrowedAt: new Date(),
+        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+        status: 'borrowed',
+        appointmentId: appointment.id,
+      };
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Không thể xác nhận lịch đặt');
-      }
+      const borrowalRef = await addDoc(collection(db, 'borrowals'), borrowalData);
+
+      // Update book availability
+      const bookRef = doc(db, 'books', appointment.bookId);
+      await updateDoc(bookRef, {
+        available: increment(-1),
+      });
+
+      // Update user's borrowed books
+      const userRef = doc(db, 'users', appointment.userId);
+      await updateDoc(userRef, {
+        booksOut: increment(1),
+        borrowedBooks: arrayUnion(appointment.bookId),
+      });
+
+      // Update appointment with borrowal ID
+      await updateDoc(appointmentRef, {
+        borrowalId: borrowalRef.id,
+      });
 
       toast({
         title: '✅ Đã xác nhận',
         description: `Đã cho ${appointment.userName} mượn sách "${appointment.bookTitle}"`,
       });
 
-      // Reload appointments
-      await loadAppointments();
     } catch (error: any) {
+      console.error('Error confirming appointment:', error);
       toast({
         variant: 'destructive',
         title: '❌ Lỗi',
-        description: error.message,
+        description: error.message || 'Không thể xác nhận lịch hẹn',
       });
     } finally {
       setProcessingId(null);
@@ -81,34 +142,23 @@ export function AppointmentsManager() {
   const handleCancel = async (appointment: Appointment) => {
     setProcessingId(appointment.id);
     try {
-      const response = await fetch('/api/appointments', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appointmentId: appointment.id,
-          action: 'cancel',
-          cancellationReason: 'Hủy bởi thư viện',
-        }),
+      const appointmentRef = doc(db, 'appointments', appointment.id);
+      await updateDoc(appointmentRef, {
+        status: 'cancelled',
+        cancellationReason: 'Hủy bởi thư viện',
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Không thể hủy lịch đặt');
-      }
 
       toast({
         title: '✅ Đã hủy',
         description: `Đã hủy lịch đặt của ${appointment.userName}`,
       });
 
-      // Reload appointments
-      await loadAppointments();
     } catch (error: any) {
+      console.error('Error cancelling appointment:', error);
       toast({
         variant: 'destructive',
         title: '❌ Lỗi',
-        description: error.message,
+        description: error.message || 'Không thể hủy lịch hẹn',
       });
     } finally {
       setProcessingId(null);
@@ -169,17 +219,48 @@ export function AppointmentsManager() {
     );
   }
 
+  // Filter appointments by search ID
+  const filteredAppointments = appointments.filter((appointment) => {
+    if (!searchId.trim()) return true;
+    const search = searchId.trim().toLowerCase();
+    return (
+      appointment.id.toLowerCase().includes(search) ||
+      appointment.userId.toLowerCase().includes(search) ||
+      appointment.bookId.toLowerCase().includes(search) ||
+      appointment.userName.toLowerCase().includes(search) ||
+      (appointment.userMemberId && String(appointment.userMemberId).toLowerCase().includes(search))
+    );
+  });
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Lịch đặt mượn sách ({appointments.length})
-        </CardTitle>
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Lịch đặt mượn sách ({filteredAppointments.length}/{appointments.length})
+          </CardTitle>
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Lọc theo ID, mã thẻ..."
+              value={searchId}
+              onChange={(e) => setSearchId(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
+        {filteredAppointments.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>Không tìm thấy lịch đặt nào với từ khóa &quot;{searchId}&quot;</p>
+          </div>
+        ) : (
         <div className="space-y-3">
-          {appointments.map((appointment) => {
+          {filteredAppointments.map((appointment) => {
             const now = new Date();
             const hoursLate = differenceInHours(now, new Date(appointment.pickupTime));
             const isExpired = hoursLate > 2;
@@ -258,13 +339,16 @@ export function AppointmentsManager() {
             );
           })}
         </div>
+        )}
         
+        {filteredAppointments.length > 0 && (
         <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm text-blue-800 dark:text-blue-300">
             💡 <strong>Lưu ý:</strong> Kiểm tra thẻ thư viện (Member ID) trước khi xác nhận. 
             Lịch đặt quá 2 giờ sẽ tự động hủy và trả sách về kho.
           </p>
         </div>
+        )}
       </CardContent>
     </Card>
   );

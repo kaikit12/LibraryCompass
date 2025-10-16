@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Due date reminders sent successfully',
-      emailsSent: result.sent || 0,
+      emailsSent: result.count || 0,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

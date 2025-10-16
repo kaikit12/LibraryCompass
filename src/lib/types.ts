@@ -7,6 +7,8 @@ export interface Book {
   status: 'Available' | 'Borrowed';
   quantity: number;
   available: number;
+  condition: 'good' | 'fair' | 'damaged' | 'lost'; // Overall condition (for backward compatibility)
+  conditionDetails?: BookConditionDetail[]; // Detailed condition tracking per copy
   libraryId?: string; // Custom ID for library management
   lateFeePerDay?: number;
   imageUrl?: string;
@@ -21,6 +23,9 @@ export interface Book {
   series?: string; // Series name (e.g., "Harry Potter")
   seriesOrder?: number; // Order in series (1, 2, 3...)
   totalInSeries?: number; // Total books in series (e.g., 7)
+  // Timestamps
+  createdAt?: any; // Firestore timestamp
+  updatedAt?: any; // Firestore timestamp
 }
 
 export interface Reader {
@@ -142,6 +147,14 @@ export interface Wishlist {
   addedAt: Date;
   priority?: 'low' | 'medium' | 'high'; // Reading priority
   notes?: string; // Personal notes about why they want to read it
+}
+
+export interface BookConditionDetail {
+  copyId: string; // Unique identifier for each physical copy (e.g., "001", "002")
+  condition: 'good' | 'fair' | 'damaged' | 'lost';
+  notes?: string; // Optional notes about the condition
+  lastChecked?: any; // Firestore timestamp when condition was last checked
+  updatedBy?: string; // User ID who last updated the condition
 }
 
 export interface LibrarySettings {

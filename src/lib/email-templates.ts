@@ -336,3 +336,218 @@ export function getRenewalApprovedEmailTemplate(data: RenewalApprovedEmailData) 
     `,
   };
 }
+
+interface InventoryAlertEmailData {
+  libraryName: string;
+  recipientName: string;
+  count: number;
+  threshold?: number;
+  bookList: string;
+  systemUrl: string;
+}
+
+/**
+ * Email template for inventory alerts (low stock, damaged, lost books)
+ */
+export function getInventoryAlertEmailTemplate(
+  alertType: 'low-stock' | 'damaged' | 'lost' | 'test',
+  data: InventoryAlertEmailData
+) {
+  const { libraryName, recipientName, count, threshold, bookList, systemUrl } = data;
+
+  let subject = '';
+  let title = '';
+  let icon = '';
+  let description = '';
+  let color = '#3b82f6'; // default blue
+
+  switch (alertType) {
+    case 'low-stock':
+    case 'test':
+      subject = `🔔 Cảnh báo: Sách sắp hết tồn kho - ${libraryName}`;
+      title = 'Cảnh báo tồn kho thấp';
+      icon = '🔔';
+      description = `Phát hiện có ${count} đầu sách sắp hết tồn kho${threshold ? ` (≤ ${threshold} cuốn)` : ''}.`;
+      color = '#f59e0b'; // amber
+      break;
+    case 'damaged':
+      subject = `⚠️ Thông báo: Phát hiện sách hư hỏng - ${libraryName}`;
+      title = 'Thông báo sách hư hỏng';
+      icon = '⚠️';
+      description = `Hệ thống ghi nhận có ${count} cuốn sách bị đánh dấu là hư hỏng.`;
+      color = '#eab308'; // yellow
+      break;
+    case 'lost':
+      subject = `🚨 Cảnh báo: Sách bị mất - ${libraryName}`;
+      title = 'Cảnh báo sách mất';
+      icon = '🚨';
+      description = `Hệ thống ghi nhận có ${count} cuốn sách bị đánh dấu là mất.`;
+      color = '#ef4444'; // red
+      break;
+  }
+
+  return {
+    subject,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+          }
+          .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid ${color};
+          }
+          .title {
+            color: ${color};
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+          }
+          .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+          }
+          .alert-box {
+            background: linear-gradient(135deg, ${color}15 0%, ${color}05 100%);
+            border-left: 4px solid ${color};
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+          }
+          .book-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            white-space: pre-line;
+            font-family: monospace;
+            font-size: 14px;
+          }
+          .button {
+            display: inline-block;
+            background: ${color};
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 20px 0;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 14px;
+          }
+          .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .stat-item {
+            flex: 1;
+            padding: 10px;
+          }
+          .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: ${color};
+          }
+          .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="icon">${icon}</div>
+            <h1 class="title">${title}</h1>
+            <p>Hệ thống Thư viện ${libraryName}</p>
+          </div>
+
+          <p>Xin chào <strong>${recipientName}</strong>,</p>
+
+          <div class="alert-box">
+            <strong>${description}</strong>
+          </div>
+
+          ${alertType === 'test' ? `
+            <p><em>Đây là email thử nghiệm để kiểm tra cấu hình hệ thống cảnh báo.</em></p>
+          ` : ''}
+
+          <h3>Chi tiết:</h3>
+          <div class="book-list">${bookList}</div>
+
+          ${alertType === 'low-stock' || alertType === 'test' ? `
+            <p>Vui lòng xem xét:</p>
+            <ul>
+              <li>Đặt hàng bổ sung để tránh thiếu sách</li>
+              <li>Cập nhật số lượng tồn kho nếu cần</li>
+              <li>Kiểm tra nhu cầu độc giả đối với các đầu sách này</li>
+            </ul>
+          ` : alertType === 'damaged' ? `
+            <p>Vui lòng kiểm tra và quyết định về việc:</p>
+            <ul>
+              <li>Sửa chữa sách nếu có thể</li>
+              <li>Thay thế bằng sách mới</li>
+              <li>Loại bỏ khỏi kho nếu không thể sử dụng</li>
+            </ul>
+          ` : `
+            <p>Vui lòng xem xét các biện pháp:</p>
+            <ul>
+              <li>Tìm kiếm sách trong kho</li>
+              <li>Liên hệ người mượn cuối cùng</li>
+              <li>Cập nhật trạng thái hoặc đặt hàng thay thế</li>
+            </ul>
+          `}
+
+          <div class="stats">
+            <div class="stat-item">
+              <div class="stat-number">${count}</div>
+              <div class="stat-label">Sách cần chú ý</div>
+            </div>
+            ${threshold ? `
+              <div class="stat-item">
+                <div class="stat-number">${threshold}</div>
+                <div class="stat-label">Ngưỡng cảnh báo</div>
+              </div>
+            ` : ''}
+          </div>
+
+          <a href="${systemUrl}/reports" class="button">Xem báo cáo chi tiết</a>
+
+          <div class="footer">
+            <p>Email tự động từ Hệ thống Thư viện ${libraryName}</p>
+            <p>Thời gian: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: vi })}</p>
+            <p><a href="${systemUrl}">Truy cập hệ thống</a></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  };
+}

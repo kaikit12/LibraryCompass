@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { Appointment } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { Loader2, Calendar, Clock, XCircle } from 'lucide-react';
 import { format, differenceInHours } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export function MyAppointments() {
   const { user } = useAuth();
@@ -18,62 +20,71 @@ export function MyAppointments() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
 
-  const loadAppointments = async () => {
-    if (!user) return;
+  useEffect(() => {
+    if (!user || !user.id) {
+      setLoading(false);
+      return;
+    }
 
-    try {
-      const response = await fetch(`/api/appointments?userId=${user.id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch appointments');
+    // Use Firestore onSnapshot for real-time updates
+    const appointmentsQuery = query(
+      collection(db, 'appointments'),
+      where('userId', '==', user.id)
+    );
+
+    const unsubscribe = onSnapshot(appointmentsQuery, (snapshot) => {
+      try {
+        const appointmentsList = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            pickupTime: data.pickupTime?.toDate?.() || new Date(),
+            createdAt: data.createdAt?.toDate?.() || new Date(),
+            confirmedAt: data.confirmedAt?.toDate?.() || null,
+          } as Appointment;
+        });
+
+        // Sort by pickupTime asc (soonest first)
+        appointmentsList.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
+        
+        setAppointments(appointmentsList);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error processing appointments:', error);
+        setAppointments([]);
+        setLoading(false);
       }
-
-      const data = await response.json();
-      setAppointments(data.appointments || []);
-    } catch (error) {
-      console.error('Error loading appointments:', error);
+    }, (error) => {
+      console.error('Error listening to appointments:', error);
+      setAppointments([]);
+      setLoading(false);
       toast({
         title: 'Lỗi',
-        description: 'Không thể tải danh sách lịch hẹn',
+        description: 'Không thể tải danh sách lịch hẹn từ cơ sở dữ liệu.',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
 
-  useEffect(() => {
-    loadAppointments();
-    // Auto-refresh every minute to update status badges
-    const interval = setInterval(loadAppointments, 60000);
-    return () => clearInterval(interval);
-  }, [user]);
+    return () => unsubscribe();
+  }, [user, toast]);
 
   const handleCancel = async (appointmentId: string) => {
     if (!confirm('Bạn có chắc muốn hủy lịch hẹn này?')) return;
 
     setCancelling(appointmentId);
     try {
-      const response = await fetch('/api/appointments', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appointmentId,
-          action: 'cancel',
-          cancellationReason: 'Người dùng tự hủy',
-        }),
+      const appointmentRef = doc(db, 'appointments', appointmentId);
+      await updateDoc(appointmentRef, {
+        status: 'cancelled',
+        cancellationReason: 'Hủy bởi người dùng',
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to cancel appointment');
-      }
 
       toast({
         title: 'Đã hủy lịch hẹn',
         description: 'Lịch hẹn của bạn đã được hủy thành công',
       });
 
-      await loadAppointments();
     } catch (error) {
       console.error('Error cancelling appointment:', error);
       toast({

@@ -109,6 +109,9 @@ export function BookAppointmentDialog({ bookId, bookTitle, disabled = false }: B
         description: `Vui lòng đến thư viện lúc ${pickupDateTime.toLocaleString('vi-VN')} để nhận sách. Nhớ mang theo thẻ thư viện!`,
       });
 
+      // Dispatch event to trigger refresh in MyAppointments component
+      window.dispatchEvent(new Event('appointmentCreated'));
+
       setIsOpen(false);
       // Reset form
       setPickupDate('');

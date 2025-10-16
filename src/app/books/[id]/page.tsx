@@ -10,10 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookCopy, CheckCircle, XCircle, ArrowLeft, Users } from "lucide-react";
+import { BookCopy, CheckCircle, XCircle, ArrowLeft, Users, BookmarkPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { BorrowDialog } from "@/components/books/borrow-dialog";
+import { ReserveButton } from "@/components/books/reserve-button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 
@@ -77,34 +78,6 @@ export default function BookDetailPage() {
     }
   };
 
-  const handleReturnBook = async () => {
-    if (!book) return;
-    
-    // This logic is for librarians/admins, so `readers` will be populated.
-    const userWithBook = readers.find(reader => (reader.borrowedBooks ?? []).includes(book.id));
-    
-    if (!userWithBook) {
-      toast({ variant: 'destructive', title: '❌ Trả sách thất bại', description: "Không tìm thấy bạn đọc đang mượn sách này."});
-      return;
-    }
-    
-    try {
-        const response = await fetch('/api/return', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookId: book.id, userId: userWithBook.id }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message);
-
-      toast({ title: '✅ Trả sách thành công!', description: data.message});
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Lỗi không xác định';
-    toast({ variant: 'destructive', title: '❌ Trả sách thất bại', description: message});
-    }
-  };
-
-
   if (loading) {
     return (
       <div className="space-y-4">
@@ -139,11 +112,11 @@ export default function BookDetailPage() {
   }
 
   const isBorrowable = book.status === 'Available' && book.available > 0;
-  const showReturnButton = currentUser && (currentUser.role === 'admin' || currentUser.role === 'librarian');
-  const isReturnable = showReturnButton && book.available < book.quantity;
+  const isAdminOrLibrarian = currentUser && (currentUser.role === 'admin' || currentUser.role === 'librarian');
+  const isReader = currentUser && currentUser.role === 'reader';
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-4xl mx-auto">
         <div className="mb-6">
             <Button asChild variant="outline" size="sm">
         <Link href="/books">
@@ -155,13 +128,14 @@ export default function BookDetailPage() {
 
       <Card>
         {book.imageUrl && (
-            <div className="relative h-64 w-full">
+            <div className="relative h-96 w-full overflow-hidden rounded-t-lg">
         <Image
           src={book.imageUrl}
           alt={`Ảnh bìa ${book.title}`}
           fill
-          className="object-cover rounded-t-lg"
-          sizes="(max-width: 768px) 100vw, 768px"
+          className="object-contain"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1024px"
+          priority
         />
             </div>
         )}
@@ -170,14 +144,48 @@ export default function BookDetailPage() {
           <CardDescription>Tác giả {book.author}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                  <Badge variant="secondary" className="text-lg">{book.genre}</Badge>
-                  {book.libraryId && <Badge variant="outline" className="text-md ml-2">ID: {book.libraryId}</Badge>}
+            {/* Thông tin cơ bản */}
+            <div className="flex justify-between items-start gap-4">
+                <div className="flex-1 space-y-2">
+                  {/* Thể loại */}
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="text-lg">{book.genre}</Badge>
+                    {book.libraryId && <Badge variant="outline" className="text-md">ID: {book.libraryId}</Badge>}
+                  </div>
+                  
+                  {/* Series info */}
+                  {book.series && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 border-blue-200">
+                        📚 {book.series} {book.seriesOrder && book.totalInSeries && `(${book.seriesOrder}/${book.totalInSeries})`}
+                      </Badge>
+                    </div>
+                  )}
+                  
+                  {/* ISBN */}
+                  {book.isbn && (
+                    <p className="text-sm text-muted-foreground">
+                      ISBN: {book.isbn}
+                    </p>
+                  )}
+                  
+                  {/* Số lượng đặt trước */}
+                  {book.reservationCount && book.reservationCount > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default" className="bg-blue-500 text-white">
+                        {book.reservationCount} người đang đặt trước
+                      </Badge>
+                    </div>
+                  )}
                 </div>
-                <div className="text-right">
-                    <div className="font-bold text-lg">{book.available} / {book.quantity}</div>
-                    <div className="text-sm text-muted-foreground">Có sẵn</div>
+                
+                {/* Số lượng sách */}
+                <div className="text-right shrink-0">
+                    <div className="font-bold text-2xl text-primary">{book.available}</div>
+                    <div className="text-sm text-muted-foreground">Còn lại</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Tổng: {book.quantity}
+                    </div>
                 </div>
             </div>
 
@@ -193,20 +201,33 @@ export default function BookDetailPage() {
             </div>
             
             <div className="pt-4 border-t">
-              {showReturnButton ? (
-                  <div className="flex gap-4">
-            <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="flex-1">
-              <BookCopy className="mr-2" /> Mượn
-                      </Button>
-            <Button onClick={handleReturnBook} disabled={!isReturnable} variant="outline" className="flex-1">
-              <Users className="mr-2" /> Trả
-                      </Button>
-                  </div>
-              ) : (
-          <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="w-full">
-            <BookCopy className="mr-2" /> 
-            {currentUser ? 'Mượn cuốn sách này' : 'Đăng nhập để mượn'}
-                  </Button>
+              {/* Admin/Librarian: Nút Mượn */}
+              {isAdminOrLibrarian && (
+                <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="w-full" size="lg">
+                  <BookCopy className="mr-2" /> Mượn sách cho bạn đọc
+                </Button>
+              )}
+              
+              {/* Reader: Nút Đặt sách */}
+              {isReader && (
+                <div className="space-y-3">
+                  <ReserveButton 
+                    bookId={book.id} 
+                    bookTitle={book.title}
+                    isAvailable={isBorrowable}
+                  />
+                  <p className="text-sm text-muted-foreground text-center">
+                    💡 Đặt trước để được ưu tiên khi sách có sẵn
+                  </p>
+                </div>
+              )}
+              
+              {/* Chưa đăng nhập */}
+              {!currentUser && (
+                <Button onClick={handleBorrowClick} disabled={!isBorrowable} className="w-full" size="lg">
+                  <BookCopy className="mr-2" /> 
+                  Đăng nhập để mượn/đặt sách
+                </Button>
               )}
             </div>
         </CardContent>

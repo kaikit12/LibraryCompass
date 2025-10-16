@@ -5,7 +5,8 @@ import { RenewalRequest } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Loader2, Check, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Calendar, Loader2, Check, X, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -18,6 +19,8 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export function RenewalRequestsManager() {
   const { user } = useAuth();
@@ -28,49 +31,84 @@ export function RenewalRequestsManager() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RenewalRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [searchId, setSearchId] = useState('');
+  
+  // Don't render if user doesn't have proper access
+  if (!user || (user.role !== 'admin' && user.role !== 'librarian')) {
+    return null;
+  }
 
   useEffect(() => {
-    loadRequests();
-  }, []);
+    // Only load requests if user is authenticated and has proper role
+    if (user && (user.role === 'admin' || user.role === 'librarian')) {
+      // Use Firestore onSnapshot for real-time updates
+      const renewalsQuery = query(
+        collection(db, 'renewals'),
+        where('status', '==', 'pending')
+      );
 
-  const loadRequests = async () => {
-    try {
-      const response = await fetch('/api/renewals?status=pending');
-      if (!response.ok) throw new Error('Failed to fetch requests');
-      
-      const data = await response.json();
-      setRequests(data);
-    } catch (error) {
-      console.error('Error loading requests:', error);
-      toast({
-        variant: 'destructive',
-        title: '❌ Lỗi',
-        description: 'Không thể tải danh sách yêu cầu gia hạn',
+      const unsubscribe = onSnapshot(renewalsQuery, (snapshot) => {
+        try {
+          const renewalsList = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              currentDueDate: data.currentDueDate?.toDate?.() || new Date(),
+              createdAt: data.createdAt?.toDate?.() || new Date(),
+              processedAt: data.processedAt?.toDate?.() || null,
+            } as RenewalRequest;
+          });
+
+          // Sort by createdAt desc
+          renewalsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          
+          setRequests(renewalsList);
+          setIsLoading(false);
+        } catch (error) {
+          console.error('Error processing renewal requests:', error);
+          setRequests([]);
+          setIsLoading(false);
+        }
+      }, (error) => {
+        console.error('Error listening to renewal requests:', error);
+        setRequests([]);
+        setIsLoading(false);
+        toast({
+          variant: 'destructive',
+          title: '❌ Lỗi',
+          description: 'Không thể tải danh sách yêu cầu gia hạn từ cơ sở dữ liệu.',
+        });
       });
-    } finally {
-      setIsLoading(false);
+
+      return () => unsubscribe();
+    } else {
+      setIsLoading(false); // Stop loading if no proper access
     }
-  };
+  }, [user, toast]); // Depend on user state changes
 
   const handleApprove = async (request: RenewalRequest) => {
     if (!user) return;
 
     setProcessingId(request.id);
     try {
-      const response = await fetch('/api/renewals', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          renewalId: request.id,
-          action: 'approve',
-          processedBy: user.id,
-        }),
+      // Update renewal request status
+      const renewalRef = doc(db, 'renewals', request.id);
+      await updateDoc(renewalRef, {
+        status: 'approved',
+        processedAt: new Date(),
+        processedBy: user.id,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Không thể chấp nhận yêu cầu');
+      // Update the borrowal due date
+      if (request.borrowalId) {
+        const borrowalRef = doc(db, 'borrowals', request.borrowalId);
+        const newDueDate = new Date(request.currentDueDate);
+        newDueDate.setDate(newDueDate.getDate() + (request.requestedDays || 14));
+        
+        await updateDoc(borrowalRef, {
+          dueDate: newDueDate,
+        });
       }
 
       toast({
@@ -78,13 +116,12 @@ export function RenewalRequestsManager() {
         description: `Đã gia hạn sách cho ${request.userName}`,
       });
 
-      // Reload requests
-      await loadRequests();
     } catch (error: any) {
+      console.error('Error approving renewal:', error);
       toast({
         variant: 'destructive',
         title: '❌ Lỗi',
-        description: error.message,
+        description: error.message || 'Không thể chấp nhận yêu cầu',
       });
     } finally {
       setProcessingId(null);
@@ -102,22 +139,13 @@ export function RenewalRequestsManager() {
 
     setProcessingId(selectedRequest.id);
     try {
-      const response = await fetch('/api/renewals', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          renewalId: selectedRequest.id,
-          action: 'reject',
-          processedBy: user.id,
-          rejectionReason,
-        }),
+      const renewalRef = doc(db, 'renewals', selectedRequest.id);
+      await updateDoc(renewalRef, {
+        status: 'rejected',
+        processedAt: new Date(),
+        processedBy: user.id,
+        rejectionReason: rejectionReason || undefined,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Không thể từ chối yêu cầu');
-      }
 
       toast({
         title: '✅ Đã từ chối',
@@ -126,14 +154,14 @@ export function RenewalRequestsManager() {
 
       setRejectDialogOpen(false);
       setSelectedRequest(null);
-      
-      // Reload requests
-      await loadRequests();
+      setRejectionReason('');
+
     } catch (error: any) {
+      console.error('Error rejecting renewal:', error);
       toast({
         variant: 'destructive',
         title: '❌ Lỗi',
-        description: error.message,
+        description: error.message || 'Không thể từ chối yêu cầu',
       });
     } finally {
       setProcessingId(null);
@@ -177,18 +205,48 @@ export function RenewalRequestsManager() {
     );
   }
 
+  // Filter requests by search ID
+  const filteredRequests = requests.filter((request) => {
+    if (!searchId.trim()) return true;
+    const search = searchId.trim().toLowerCase();
+    return (
+      request.id.toLowerCase().includes(search) ||
+      request.userId.toLowerCase().includes(search) ||
+      request.bookId.toLowerCase().includes(search) ||
+      request.userName.toLowerCase().includes(search)
+    );
+  });
+
   return (
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Yêu cầu gia hạn sách ({requests.length})
-          </CardTitle>
+          <div className="flex items-center justify-between gap-4">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Yêu cầu gia hạn sách ({filteredRequests.length}/{requests.length})
+            </CardTitle>
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Lọc theo ID, mã thẻ..."
+                value={searchId}
+                onChange={(e) => setSearchId(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
+          {filteredRequests.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p>Không tìm thấy yêu cầu nào với từ khóa &quot;{searchId}&quot;</p>
+            </div>
+          ) : (
           <div className="space-y-3">
-            {requests.map((request) => (
+            {filteredRequests.map((request) => (
               <div
                 key={request.id}
                 className="flex flex-col gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
@@ -238,6 +296,7 @@ export function RenewalRequestsManager() {
               </div>
             ))}
           </div>
+          )}
         </CardContent>
       </Card>
 

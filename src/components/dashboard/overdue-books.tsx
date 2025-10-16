@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, format, isPast } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { Bell, Check } from 'lucide-react';
+import { Bell, Check, Search } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { createNotification } from '@/lib/notifications';
@@ -26,6 +27,7 @@ export default function OverdueBooks() {
   const { toast } = useToast();
   const [overdueEntries, setOverdueEntries] = useState<OverdueEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchId, setSearchId] = useState('');
 
   useEffect(() => {
     const borrowalsQuery = query(collection(db, "borrowals"), where("status", "==", "borrowed"));
@@ -126,16 +128,44 @@ export default function OverdueBooks() {
     }
   };
 
+  // Filter entries by search ID
+  const filteredEntries = overdueEntries.filter((entry) => {
+    if (!searchId.trim()) return true;
+    const search = searchId.trim().toLowerCase();
+    return (
+      entry.userId.toLowerCase().includes(search) ||
+      entry.bookId.toLowerCase().includes(search) ||
+      entry.userName.toLowerCase().includes(search) ||
+      entry.bookTitle.toLowerCase().includes(search)
+    );
+  });
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Sách quá hạn</CardTitle>
-        <CardDescription>Danh sách sách đã quá hạn trả.</CardDescription>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="font-headline">Sách quá hạn ({filteredEntries.length}/{overdueEntries.length})</CardTitle>
+            <CardDescription>Danh sách sách đã quá hạn trả.</CardDescription>
+          </div>
+          {overdueEntries.length > 0 && (
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Lọc theo ID, tên..."
+                value={searchId}
+                onChange={(e) => setSearchId(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
           <div className="text-center text-muted-foreground p-8">Đang tải...</div>
-        ) : overdueEntries.length > 0 ? (
+        ) : filteredEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -148,7 +178,7 @@ export default function OverdueBooks() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {overdueEntries.map((entry, index) => (
+                {filteredEntries.map((entry, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{entry.bookTitle}</TableCell>
                     <TableCell>{entry.userName}</TableCell>
@@ -172,6 +202,11 @@ export default function OverdueBooks() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        ) : overdueEntries.length > 0 ? (
+          <div className="text-center text-muted-foreground p-8">
+            <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>Không tìm thấy sách quá hạn nào với từ khóa &quot;{searchId}&quot;</p>
           </div>
         ) : (
           <div className="text-center text-muted-foreground p-8">

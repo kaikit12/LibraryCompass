@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users to read and write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to read and write books
+    match /books/{bookId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'librarian');
+    }
+    
+    // Allow authenticated users to read and write borrow records
+    match /borrows/{borrowId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'librarian' || 
+         resource.data.userId == request.auth.uid);
+    }
+    
+    // Allow authenticated users to read and write reservations
+    match /reservations/{reservationId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow authenticated users to read and write appointments
+    match /appointments/{appointmentId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow authenticated users to read and write reviews
+    match /reviews/{reviewId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow authenticated users to read and write renewal requests
+    match /renewalRequests/{requestId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow authenticated users to read and write renewals
+    match /renewals/{renewalId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow authenticated users to read and write borrowals  
+    match /borrowals/{borrowalId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow authenticated users to read and write wishlist
+    match /wishlist/{wishlistId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Allow authenticated users to read and write notifications
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow admin/librarians to read and write settings
+    match /settings/{settingId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'librarian');
+    }
+    
+    // Temporary rule for development - REMOVE IN PRODUCTION
+    // Allow all authenticated users to read all documents
+    match /{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}

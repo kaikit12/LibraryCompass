@@ -8,7 +8,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem
 } from '@/components/ui/sidebar'
-import { Home, Book, Users, BarChart3, BookHeart, Settings, UserCog, Mail } from 'lucide-react'
+import { Home, Book, Users, BarChart3, BookHeart, Settings, UserCog, Mail, CheckCircle } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth-context'
@@ -18,6 +18,7 @@ import * as React from 'react'
 const mainLinks = [
   { href: '/', label: 'Bảng điều khiển', icon: Home, roles: ['admin', 'librarian'] },
   { href: '/books', label: 'Kho sách', icon: Book, roles: ['admin', 'librarian', 'reader'] },
+  { href: '/books/condition', label: 'Quản lý tình trạng', icon: CheckCircle, roles: ['admin', 'librarian'] },
   { href: '/my-books', label: 'Trang cá nhân', icon: BookHeart, roles: ['admin', 'librarian', 'reader'] },
   { href: '/readers', label: 'Bạn đọc', icon: Users, roles: ['admin', 'librarian'] },
   { href: '/admin/emails', label: 'Thông báo email', icon: Mail, roles: ['admin', 'librarian'] },
@@ -26,6 +27,7 @@ const mainLinks = [
 ]
 
 const reportLinks = [
+  { href: '/reports', label: 'Tổng quan', roles: ['admin', 'librarian'] },
   { href: '/reports/revenue', label: 'Doanh thu', roles: ['admin'] }, // Only admin
 ]
 

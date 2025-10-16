@@ -4,13 +4,14 @@ import { Book, Reader } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Search } from 'lucide-react';
 
 interface BorrowedEntry {
   bookId: string;
@@ -28,6 +29,7 @@ export default function CurrentlyBorrowedBooks() {
   const [borrowedEntries, setBorrowedEntries] = useState<BorrowedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [returningBookIds, setReturningBookIds] = useState<Set<string>>(new Set());
+  const [searchId, setSearchId] = useState('');
 
   useEffect(() => {
     const borrowalsQuery = query(collection(db, "borrowals"), where("status", "==", "borrowed"));
@@ -106,17 +108,44 @@ export default function CurrentlyBorrowedBooks() {
     }
   };
 
+  // Filter entries by search ID
+  const filteredEntries = borrowedEntries.filter((entry) => {
+    if (!searchId.trim()) return true;
+    const search = searchId.trim().toLowerCase();
+    return (
+      entry.userId.toLowerCase().includes(search) ||
+      entry.bookId.toLowerCase().includes(search) ||
+      entry.userName.toLowerCase().includes(search) ||
+      entry.bookTitle.toLowerCase().includes(search)
+    );
+  });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Sách đang được mượn</CardTitle>
-        <CardDescription>Danh sách tất cả sách đang được mượn tại thư viện.</CardDescription>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="font-headline">Sách đang được mượn ({filteredEntries.length}/{borrowedEntries.length})</CardTitle>
+            <CardDescription>Danh sách tất cả sách đang được mượn tại thư viện.</CardDescription>
+          </div>
+          {borrowedEntries.length > 0 && (
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Lọc theo ID, tên..."
+                value={searchId}
+                onChange={(e) => setSearchId(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
            <div className="text-center text-muted-foreground p-8">Đang tải...</div>
-        ) : borrowedEntries.length > 0 ? (
+        ) : filteredEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -131,7 +160,7 @@ export default function CurrentlyBorrowedBooks() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {borrowedEntries.map((entry, index) => (
+                {filteredEntries.map((entry, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{entry.bookTitle}</TableCell>
                     <TableCell>{entry.userName}</TableCell>
@@ -155,6 +184,11 @@ export default function CurrentlyBorrowedBooks() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        ) : borrowedEntries.length > 0 ? (
+          <div className="text-center text-muted-foreground p-8">
+            <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>Không tìm thấy sách nào với từ khóa &quot;{searchId}&quot;</p>
           </div>
         ) : (
           <div className="text-center text-muted-foreground p-8">

@@ -31,6 +31,7 @@ import { BookCardView } from "./book-card-view";
 import { SearchFilters, SearchFiltersState } from "./search-filters";
 import { BarcodeScanner } from "./barcode-scanner";
 import { SeriesView } from "./series-view";
+import { BookConditionManager } from "./book-condition-manager";
 
 interface BookActionsProps {
   highlightedBookId?: string | null;
@@ -52,6 +53,7 @@ export function BookActions() {
     sortBy: 'newest',
     minRating: '0',
     series: 'all',
+    condition: 'all',
   });
   const [viewMode, setViewMode] = useState<'table' | 'card' | 'series'>('card');
   const { toast } = useToast();
@@ -151,7 +153,10 @@ export function BookActions() {
       // Series filter
       const seriesMatch = filters.series === 'all' || book.series === filters.series;
       
-      return searchMatch && statusMatch && genreMatch && isbnMatch && yearMatch && ratingMatch && seriesMatch;
+      // Condition filter
+      const conditionMatch = filters.condition === 'all' || (book.condition || 'good') === filters.condition;
+      
+      return searchMatch && statusMatch && genreMatch && isbnMatch && yearMatch && ratingMatch && seriesMatch && conditionMatch;
     });
 
     // Sorting
@@ -210,7 +215,7 @@ export function BookActions() {
   }
 
   const handleOpenAdd = () => {
-    setEditingBook({ quantity: 1, available: 1, lateFeePerDay: 1 });
+    setEditingBook({ quantity: 1, available: 1, lateFeePerDay: 1, condition: 'good' });
     setCustomGenre("");
     setIsAddEditOpen(true);
   }
@@ -255,9 +260,25 @@ export function BookActions() {
       }
     }
     
-    if (!editingBook?.title || !editingBook?.author || finalGenres.length === 0 || editingBook?.quantity === undefined) {
-      toast({ variant: 'destructive', title: '❌ Lỗi', description: 'Vui lòng nhập đầy đủ các trường bắt buộc (tiêu đề, tác giả, thể loại, số lượng).'});
+    if (!editingBook?.title || !editingBook?.author || finalGenres.length === 0 || editingBook?.quantity === undefined || !editingBook?.condition) {
+      toast({ variant: 'destructive', title: '❌ Lỗi', description: 'Vui lòng nhập đầy đủ các trường bắt buộc (tiêu đề, tác giả, thể loại, số lượng, tình trạng).'});
       return;
+    }
+    
+    // Check for duplicate library ID (only when adding new book or changing ID)
+    if (editingBook.libraryId) {
+      const isDuplicate = books.some(book => 
+        book.libraryId === editingBook.libraryId && book.id !== editingBook.id
+      );
+      
+      if (isDuplicate) {
+        toast({ 
+          variant: 'destructive', 
+          title: '❌ Mã thư viện trùng lặp', 
+          description: `Mã "${editingBook.libraryId}" đã tồn tại. Vui lòng sử dụng mã khác hoặc click "Tự động" để tạo mã mới.` 
+        });
+        return;
+      }
     }
     
     const quantity = Number(editingBook.quantity);
@@ -285,6 +306,7 @@ export function BookActions() {
         genre: finalGenres[0] || '', // Keep first genre for backward compatibility
         genres: finalGenres, // New: multiple genres
         quantity: quantity,
+        condition: editingBook.condition, // Physical condition of the book
         libraryId: editingBook.libraryId || '',
         lateFeePerDay: lateFee,
         imageUrl: editingBook.imageUrl || '',
@@ -382,7 +404,7 @@ export function BookActions() {
             variant: 'default',
           });
           // Set ISBN and open dialog for manual entry
-          setEditingBook({ isbn });
+          setEditingBook({ isbn, condition: 'good' });
           setIsAddEditOpen(true);
         } else {
           throw new Error(data.error || 'Failed to lookup ISBN');
@@ -401,6 +423,7 @@ export function BookActions() {
         publicationYear: book.publicationYear,
         quantity: 1,
         available: 1,
+        condition: 'good',
         imageUrl: book.coverImage,
       });
 
@@ -501,23 +524,83 @@ export function BookActions() {
     }
   };
 
-  const generateNextLibraryId = () => {
-    // Find all hexadecimal library IDs
-    const hexIds = books
-      .map(book => book.libraryId)
-      .filter(id => id && /^[0-9A-Fa-f]+$/.test(id)) // Only hex IDs (0-9, A-F)
-      .map(id => parseInt(id!, 16)) // Parse as hex to decimal
-      .filter(num => !isNaN(num));
+  const generateNextLibraryId = async () => {
+    // Strategy 1: Use Firestore counter for guaranteed sequential IDs
+    // Strategy 2: Fallback to timestamp + random if counter fails
     
-    // Find max ID and add 1, or start from 1 if no IDs exist
-    const maxId = hexIds.length > 0 ? Math.max(...hexIds) : 0;
-    const nextId = (maxId + 1).toString(16).toUpperCase().padStart(8, '0'); // Format: 00000001 (hex)
-    
-    setEditingBook({...editingBook, libraryId: nextId});
-    toast({ 
-      title: '✅ Mã tự động', 
-      description: `Đã tạo mã thư viện: ${nextId}` 
-    });
+    try {
+      // Try to use Firestore counter first
+      const counterRef = doc(db, 'counters', 'libraryId');
+      const counterSnap = await getDocs(query(collection(db, 'counters'), where('__name__', '==', 'libraryId')));
+      
+      if (counterSnap.empty) {
+        // Initialize counter if doesn't exist
+        const startValue = books.length > 0 ? books.length + 1 : 1;
+        await addDoc(collection(db, 'counters'), {
+          value: startValue,
+          lastUpdated: new Date()
+        });
+        const sequentialId = `LIB-${String(startValue).padStart(6, '0')}`;
+        setEditingBook({...editingBook, libraryId: sequentialId});
+        toast({ 
+          title: '✅ Mã tự động', 
+          description: `Đã tạo mã thư viện: ${sequentialId}` 
+        });
+        return;
+      }
+      
+      // Use Firestore increment (atomic operation - prevents race condition)
+      const newValue = (counterSnap.docs[0].data().value || 0) + 1;
+      await updateDoc(doc(db, 'counters', counterSnap.docs[0].id), {
+        value: newValue,
+        lastUpdated: new Date()
+      });
+      
+      const sequentialId = `LIB-${String(newValue).padStart(6, '0')}`;
+      setEditingBook({...editingBook, libraryId: sequentialId});
+      toast({ 
+        title: '✅ Mã tự động', 
+        description: `Đã tạo mã thư viện: ${sequentialId}` 
+      });
+      
+    } catch (error) {
+      console.error('Error using counter, falling back to timestamp method:', error);
+      
+      // Fallback: Use timestamp + random
+      const now = new Date();
+      const datePart = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0')
+      ].join('');
+      
+      // Generate 4-character random hex (0000-FFFF = 65536 combinations)
+      const randomPart = Math.floor(Math.random() * 65536)
+        .toString(16)
+        .toUpperCase()
+        .padStart(4, '0');
+      
+      const libraryId = `${datePart}-${randomPart}`;
+      
+      // Check for collision (very rare, but handle it)
+      const exists = books.some(book => book.libraryId === libraryId);
+      if (exists) {
+        // Add more randomness
+        const extraRandom = Math.floor(Math.random() * 256).toString(16).toUpperCase().padStart(2, '0');
+        const uniqueId = `${datePart}-${randomPart}${extraRandom}`;
+        setEditingBook({...editingBook, libraryId: uniqueId});
+        toast({ 
+          title: '✅ Mã tự động', 
+          description: `Đã tạo mã thư viện: ${uniqueId}` 
+        });
+      } else {
+        setEditingBook({...editingBook, libraryId: libraryId});
+        toast({ 
+          title: '✅ Mã tự động', 
+          description: `Đã tạo mã thư viện: ${libraryId}` 
+        });
+      }
+    }
   };
 
 
@@ -531,6 +614,7 @@ export function BookActions() {
         showQRButton={currentUserRole === 'admin' || currentUserRole === 'librarian'}
         onQRScanClick={() => setIsQRScannerOpen(true)}
         availableSeries={availableSeries}
+        customGenres={customGenres}
       />
 
       <Card>
@@ -610,7 +694,8 @@ export function BookActions() {
                   <TableHead>Bộ sách</TableHead>
                   <TableHead>Mã thư viện</TableHead>
                   <TableHead>Thể loại</TableHead>
-                  <TableHead>Tình trạng</TableHead>
+                  <TableHead>Tình trạng chi tiết</TableHead>
+                  <TableHead>Số lượng</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
@@ -645,6 +730,62 @@ export function BookActions() {
                         )}
                       </div>
                     </TableCell>
+                    <TableCell>
+                      {book.conditionDetails && book.conditionDetails.length > 0 ? (
+                        <div className="space-y-1">
+                          {book.conditionDetails.slice(0, 3).map((detail, index) => (
+                            <div key={detail.copyId} className="flex items-center gap-2 text-xs">
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "text-xs px-2 py-0.5",
+                                  detail.condition === 'good' && 'border-green-300 text-green-700',
+                                  detail.condition === 'fair' && 'border-blue-300 text-blue-700', 
+                                  detail.condition === 'damaged' && 'border-yellow-300 text-yellow-700',
+                                  detail.condition === 'lost' && 'border-red-300 text-red-700'
+                                )}
+                              >
+                                <span className={cn(
+                                  "mr-1",
+                                  detail.condition === 'good' && "text-green-500",
+                                  detail.condition === 'fair' && "text-blue-500",
+                                  detail.condition === 'damaged' && "text-yellow-500", 
+                                  detail.condition === 'lost' && "text-red-500"
+                                )}>●</span>
+                                {detail.copyId.split('-').pop()}
+                              </Badge>
+                              <span className="text-muted-foreground">
+                                {detail.condition === 'good' ? 'Tốt' : 
+                                 detail.condition === 'fair' ? 'Khá' :
+                                 detail.condition === 'damaged' ? 'Hư hỏng' : 'Mất'}
+                              </span>
+                            </div>
+                          ))}
+                          {book.conditionDetails.length > 3 && (
+                            <div className="text-xs text-muted-foreground">
+                              +{book.conditionDetails.length - 3} cuốn khác
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge 
+                          variant={book.condition === 'good' ? 'default' : book.condition === 'damaged' ? 'destructive' : 'secondary'} 
+                          className={cn(
+                            book.condition === 'good' && 'bg-green-100 text-green-800 hover:bg-green-200',
+                            book.condition === 'damaged' && 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200',
+                            book.condition === 'lost' && 'bg-red-100 text-red-800 hover:bg-red-200'
+                          )}
+                        >
+                          <span className={cn(
+                            "mr-1",
+                            book.condition === 'good' && "text-green-500",
+                            book.condition === 'damaged' && "text-yellow-500", 
+                            book.condition === 'lost' && "text-red-500"
+                          )}>●</span>
+                          {book.condition === 'good' ? 'Tốt' : book.condition === 'damaged' ? 'Hư hỏng' : 'Mất'}
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{book.available} / {book.quantity}</TableCell>
                     <TableCell>
                       <Badge variant={book.status === 'Available' ? 'default' : 'destructive'} className={cn(book.status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800', 'hover:bg-opacity-80')}>
@@ -676,6 +817,16 @@ export function BookActions() {
                           { (currentUserRole === 'admin' || currentUserRole === 'librarian') && (
                             <>
                               <DropdownMenuSeparator />
+                              <DropdownMenuItem asChild>
+                                <div className="w-full">
+                                  <BookConditionManager 
+                                    book={book} 
+                                    onUpdate={(updatedBook) => {
+                                      setBooks(prev => prev.map(b => b.id === updatedBook.id ? updatedBook : b));
+                                    }}
+                                  />
+                                </div>
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenEdit(book)}>Chỉnh sửa</DropdownMenuItem>
                               <AlertDialog>
                                   <AlertDialogTrigger asChild>
@@ -1147,6 +1298,59 @@ export function BookActions() {
                       )}
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Quản lý trạng thái sách */}
+              <div className="space-y-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/20 dark:to-pink-950/20 p-4 rounded-lg border border-red-100 dark:border-red-900">
+                <h4 className="text-sm font-semibold text-red-900 dark:text-red-100 flex items-center gap-2">
+                  <span className="text-lg">🔧</span>
+                  Tình trạng sách
+                </h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="condition" className="text-right text-sm font-medium">Tình trạng <span className="text-red-500">*</span></Label>
+                    <Select 
+                      value={editingBook?.condition || 'good'} 
+                      onValueChange={(value) => setEditingBook({...editingBook, condition: value as 'good' | 'damaged' | 'lost'})}
+                    >
+                      <SelectTrigger className="col-span-3 bg-white dark:bg-gray-950">
+                        <SelectValue placeholder="Chọn tình trạng sách..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="good">
+                          <div className="flex items-center gap-2">
+                            <span className="text-green-500">●</span>
+                            <span>Tốt</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="damaged">
+                          <div className="flex items-center gap-2">
+                            <span className="text-yellow-500">●</span>
+                            <span>Hư hỏng</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="lost">
+                          <div className="flex items-center gap-2">
+                            <span className="text-red-500">●</span>
+                            <span>Mất</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {editingBook?.condition !== 'good' && (
+                    <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        {editingBook?.condition === 'damaged' && (
+                          <>⚠️ Sách này được đánh dấu là <strong>hư hỏng</strong>. Cần kiểm tra và sửa chữa trước khi cho mượn.</>
+                        )}
+                        {editingBook?.condition === 'lost' && (
+                          <>❌ Sách này được đánh dấu là <strong>mất</strong>. Sẽ không hiển thị trong danh sách cho mượn.</>
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

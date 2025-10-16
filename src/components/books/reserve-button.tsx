@@ -80,6 +80,9 @@ export function ReserveButton({ bookId, bookTitle, isAvailable, className }: Res
         description: `Vị trí trong hàng đợi: ${data.position}. Bạn sẽ nhận thông báo khi sách sẵn sàng.`,
       });
 
+      // Dispatch event to trigger refresh in MyReservations component
+      window.dispatchEvent(new Event('reservationCreated'));
+
       // Refresh reservation status
       setReservation({
         id: data.reservationId,
@@ -120,6 +123,9 @@ export function ReserveButton({ bookId, bookTitle, isAvailable, className }: Res
         title: "✅ Đã hủy đặt chỗ",
         description: `Đã hủy đặt chỗ cho "${bookTitle}"`,
       });
+
+      // Dispatch event to trigger refresh in MyReservations component
+      window.dispatchEvent(new Event('reservationCreated'));
 
       setReservation(null);
     } catch (error: any) {

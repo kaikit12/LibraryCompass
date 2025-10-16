@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Clock, Bell, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Mail, Clock, Bell, CheckCircle2, AlertCircle, Settings } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { Badge } from '@/components/ui/badge';
+import { EmailAlertSettings } from '@/components/dashboard/email-alert-settings';
 
 export default function EmailNotificationsPage() {
   const [loading, setLoading] = useState<string | null>(null);
@@ -33,11 +35,15 @@ export default function EmailNotificationsPage() {
   const sendEmails = async (type: string) => {
     setLoading(type);
     try {
+      // ⚠️ Note: This will fail in production because CRON_SECRET is server-side only
+      // This admin page should only be used for testing in development
+      // In production, use Vercel Cron or external cron service
       const response = await fetch(`/api/scheduled/${type}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || 'librarycompass-cron-secret-2024'}`,
+          // This is a test endpoint - in production, cron jobs should be triggered by Vercel Cron
+          'Authorization': `Bearer librarycompass-cron-secret-2024`, // Hardcoded for dev testing only
         }
       });
 
@@ -76,27 +82,40 @@ export default function EmailNotificationsPage() {
       <div>
         <h1 className="text-3xl font-bold">📧 Quản lý Email Thông báo</h1>
         <p className="text-muted-foreground mt-2">
-          Gửi email thông báo thủ công cho người dùng
+          Cấu hình và gửi email thông báo cho thư viện
         </p>
       </div>
 
-      {/* Instructions */}
-      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
-        <CardHeader>
-          <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Hướng dẫn sử dụng
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p><strong>📬 Nhắc nhở trả sách:</strong> Gửi mỗi sáng (8-9h) cho người mượn sắp đến hạn (2 ngày trước)</p>
-          <p><strong>⏰ Thông báo quá hạn:</strong> Gửi sau 9h mỗi ngày để thông báo phí phạt cho người quá hạn</p>
-          <p><strong>🔔 Sách đặt trước:</strong> Gửi khi có sách được trả về để thông báo người chờ</p>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="manual" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="manual" className="flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Gửi thủ công
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Cảnh báo tồn kho
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Email Actions */}
-      <div className="grid gap-4 md:grid-cols-3">
+        <TabsContent value="manual" className="space-y-6">
+          {/* Instructions */}
+          <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+            <CardHeader>
+              <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Hướng dẫn sử dụng
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p><strong>📬 Nhắc nhở trả sách:</strong> Gửi mỗi sáng (8-9h) cho người mượn sắp đến hạn (2 ngày trước)</p>
+              <p><strong>⏰ Thông báo quá hạn:</strong> Gửi sau 9h mỗi ngày để thông báo phí phạt cho người quá hạn</p>
+              <p><strong>🔔 Sách đặt trước:</strong> Gửi khi có sách được trả về để thông báo người chờ</p>
+            </CardContent>
+          </Card>
+
+          {/* Email Actions */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Send Reminders */}
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
@@ -212,6 +231,52 @@ export default function EmailNotificationsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Inventory Alerts */}
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertCircle className="h-5 w-5 text-orange-600" />
+              Cảnh báo tồn kho
+            </CardTitle>
+            <CardDescription>
+              Email cảnh báo sách sắp hết/hư hỏng
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              • Sách sắp hết kho<br/>
+              • Sách hư hỏng/mất<br/>
+              • Cảnh báo cho thủ thư
+            </div>
+            <Button 
+              onClick={() => sendEmails('inventory-alerts')}
+              disabled={loading !== null}
+              className="w-full"
+              variant="outline"
+            >
+              {loading === 'inventory-alerts' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {loading === 'inventory-alerts' ? 'Đang gửi...' : '📦 Gửi ngay'}
+            </Button>
+            {results['inventory-alerts'] && (
+              <div className="mt-2 p-3 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200">
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-orange-600" />
+                  <span className="font-medium">
+                    {results['inventory-alerts'].emailsSent || 0} email đã gửi
+                  </span>
+                  {results['inventory-alerts'].summary && (
+                    <span className="text-xs text-muted-foreground">
+                      ({results['inventory-alerts'].summary.lowStockBooks} sắp hết, 
+                       {results['inventory-alerts'].summary.damagedBooks} hư hỏng, 
+                       {results['inventory-alerts'].summary.lostBooks} mất)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Best Practices */}
@@ -268,6 +333,12 @@ export default function EmailNotificationsPage() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="alerts">
+          <EmailAlertSettings />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -87,6 +87,35 @@ export function BookCardView({
     return <Badge className="bg-rose-500 hover:bg-rose-600 text-white border-0">Đang mượn</Badge>;
   };
 
+  const getConditionBadge = (book: Book) => {
+    const condition = book.condition || 'good';
+    
+    if (condition === 'good') {
+      return (
+        <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-0">
+          <span className="mr-1 text-green-500">●</span>
+          Tốt
+        </Badge>
+      );
+    }
+    
+    if (condition === 'damaged') {
+      return (
+        <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-0">
+          <span className="mr-1 text-yellow-500">●</span>
+          Hư hỏng
+        </Badge>
+      );
+    }
+    
+    return (
+      <Badge className="bg-red-100 text-red-800 hover:bg-red-200 border-0">
+        <span className="mr-1 text-red-500">●</span>
+        Mất
+      </Badge>
+    );
+  };
+
   const handleAddToWishlist = async (book: Book) => {
     if (!user) {
       toast({
@@ -162,8 +191,9 @@ export function BookCardView({
                       <BookOpen className="h-16 w-16 text-primary/40" />
                     </div>
                   )}
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 right-2 flex flex-col gap-1">
                     {getStatusBadge(book)}
+                    {getConditionBadge(book)}
                   </div>
                 </Link>
               </CardHeader>
@@ -206,13 +236,13 @@ export function BookCardView({
                   )}
                 </div>
 
-                {/* Rating Display */}
-                {book.rating && book.rating > 0 && (
+                {/* Rating Display - Only show when there are reviews */}
+                {book.rating && book.rating > 0 && book.reviewCount && book.reviewCount > 0 && (
                   <div className="mt-2 flex items-center gap-1">
                     <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                     <span className="text-sm font-semibold">{book.rating.toFixed(1)}</span>
                     <span className="text-xs text-muted-foreground">
-                      ({book.reviewCount || 0})
+                      ({book.reviewCount})
                     </span>
                   </div>
                 )}

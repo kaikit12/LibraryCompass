@@ -12,6 +12,8 @@ import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import Image from 'next/image';
 import Link from 'next/link';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
   Select,
   SelectContent,
@@ -41,48 +43,63 @@ export function MyWishlist() {
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      loadWishlist();
+    if (!user || !user.id) {
+      setLoading(false);
+      return;
     }
-  }, [user]);
 
-  const loadWishlist = async () => {
-    if (!user) return;
+    // Use Firestore onSnapshot for real-time updates
+    const wishlistQuery = query(
+      collection(db, 'wishlist'),
+      where('userId', '==', user.id)
+    );
 
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/wishlist?userId=${user.id}`);
-      if (!response.ok) throw new Error('Failed to fetch wishlist');
+    const unsubscribe = onSnapshot(wishlistQuery, (snapshot) => {
+      try {
+        const wishlistData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            addedAt: data.addedAt?.toDate?.() || new Date(),
+          } as Wishlist;
+        });
 
-      const data = await response.json();
-      setWishlist(data.wishlist || []);
-    } catch (error) {
-      console.error('Error loading wishlist:', error);
+        // Sort by addedAt desc (newest first)
+        wishlistData.sort((a, b) => b.addedAt.getTime() - a.addedAt.getTime());
+        
+        setWishlist(wishlistData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error processing wishlist:', error);
+        setWishlist([]);
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error('Error listening to wishlist:', error);
+      setWishlist([]);
+      setLoading(false);
       toast({
         title: 'Lỗi',
-        description: 'Không thể tải danh sách đọc',
+        description: 'Không thể tải danh sách đọc từ cơ sở dữ liệu.',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
+
+    return () => unsubscribe();
+  }, [user, toast]);
 
   const handleRemove = async (wishlistId: string) => {
     setRemoving(wishlistId);
     try {
-      const response = await fetch(`/api/wishlist?wishlistId=${wishlistId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to remove from wishlist');
+      const wishlistRef = doc(db, 'wishlist', wishlistId);
+      await deleteDoc(wishlistRef);
 
       toast({
         title: 'Đã xóa',
         description: 'Đã xóa sách khỏi danh sách đọc',
       });
 
-      await loadWishlist();
     } catch (error) {
       console.error('Error removing from wishlist:', error);
       toast({
@@ -106,17 +123,11 @@ export function MyWishlist() {
 
     setUpdating(true);
     try {
-      const response = await fetch('/api/wishlist', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wishlistId: editingItem.id,
-          priority: editPriority,
-          notes: editNotes,
-        }),
+      const wishlistRef = doc(db, 'wishlist', editingItem.id);
+      await updateDoc(wishlistRef, {
+        priority: editPriority,
+        notes: editNotes,
       });
-
-      if (!response.ok) throw new Error('Failed to update');
 
       toast({
         title: 'Đã cập nhật',
@@ -124,7 +135,6 @@ export function MyWishlist() {
       });
 
       setEditingItem(null);
-      await loadWishlist();
     } catch (error) {
       console.error('Error updating wishlist:', error);
       toast({
