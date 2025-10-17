@@ -18,8 +18,8 @@ import { FirebaseErrorBoundary } from '@/components/error-boundary';
 import { GoogleRedirectHandler } from '@/components/auth/google-redirect-handler';
 
 // Initialize ultimate Firebase error suppressor
-import '@/lib/ultimate-suppressor';
-import '@/lib/global-error-handler';
+// import '@/lib/ultimate-suppressor';
+// import '@/lib/global-error-handler';
 
 
 export const metadata: Metadata = {

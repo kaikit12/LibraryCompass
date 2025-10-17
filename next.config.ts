@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
   },
 
   // 🔒 Security: Custom webpack configuration for code obfuscation
-  webpack: webpackConfig,
+  // webpack: webpackConfig,
 
   // ⚡ Performance: Optimize bundle splitting
   onDemandEntries: {
