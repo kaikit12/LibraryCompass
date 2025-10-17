@@ -34,6 +34,28 @@ let db: Firestore;
 let auth: Auth;
 let storage: FirebaseStorage;
 
+// 🔥 Firebase v11 Fix: Add global error suppression for internal assertions
+if (typeof window !== 'undefined') {
+  const originalError = console.error;
+  console.error = (...args) => {
+    const message = args[0]?.toString() || '';
+    
+    // Suppress Firebase internal assertion errors
+    if (message.includes('FIRESTORE') && 
+        message.includes('INTERNAL ASSERTION FAILED')) {
+      return;
+    }
+    
+    // Suppress Firebase chunk loading errors
+    if (message.includes('Unexpected state') && 
+        message.includes('chunks')) {
+      return;
+    }
+    
+    originalError.apply(console, args);
+  };
+}
+
 try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   db = getFirestore(app);

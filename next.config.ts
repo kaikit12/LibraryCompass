@@ -29,6 +29,26 @@ const nextConfig: NextConfig = {
   // 🔒 Security: Custom webpack configuration for code obfuscation
   // webpack: webpackConfig,
 
+  // 🔥 Firebase Fix: Webpack configuration to prevent bundle splitting issues
+  webpack: (config, { dev, isServer }) => {
+    if (!dev && !isServer) {
+      // Prevent Firebase from being split into chunks
+      config.optimization.splitChunks = {
+        ...config.optimization.splitChunks,
+        cacheGroups: {
+          ...config.optimization.splitChunks.cacheGroups,
+          firebase: {
+            test: /[\\/]node_modules[\\/](firebase|@firebase)[\\/]/,
+            name: 'firebase',
+            chunks: 'all',
+            priority: 30,
+          },
+        },
+      };
+    }
+    return config;
+  },
+
   // ⚡ Performance: Optimize bundle splitting
   onDemandEntries: {
     maxInactiveAge: 60 * 1000, // Keep pages in memory for 1 minute

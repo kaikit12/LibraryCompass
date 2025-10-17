@@ -27,7 +27,10 @@ export class PerformanceMonitor {
       const webVitals = await importWebVitals();
       // Core Web Vitals
       webVitals.onCLS(this.sendToAnalytics.bind(this));
-      webVitals.onFID(this.sendToAnalytics.bind(this));
+      // Note: FID is deprecated, use INP instead
+      if ('onINP' in webVitals) {
+        webVitals.onINP(this.sendToAnalytics.bind(this));
+      }
       webVitals.onFCP(this.sendToAnalytics.bind(this));
       webVitals.onLCP(this.sendToAnalytics.bind(this));
       webVitals.onTTFB(this.sendToAnalytics.bind(this));
