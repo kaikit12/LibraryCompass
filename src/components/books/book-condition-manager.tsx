@@ -36,8 +36,10 @@ interface BookConditionManagerProps {
 }
 
 const conditionLabels = {
+  new: { label: 'Mới', color: 'bg-emerald-500', textColor: 'text-emerald-700' },
   good: { label: 'Tốt', color: 'bg-green-500', textColor: 'text-green-700' },
   fair: { label: 'Khá', color: 'bg-blue-500', textColor: 'text-blue-700' },
+  poor: { label: 'Kém', color: 'bg-orange-500', textColor: 'text-orange-700' },
   damaged: { label: 'Hư hỏng', color: 'bg-yellow-500', textColor: 'text-yellow-700' },
   lost: { label: 'Mất', color: 'bg-red-500', textColor: 'text-red-700' }
 };
@@ -70,6 +72,7 @@ export function BookConditionManager({ book, onUpdate }: BookConditionManagerPro
         defaultDetails.push({
           copyId: `${book.id}-${String(i).padStart(3, '0')}`,
           condition: book.condition || 'good',
+          dateRecorded: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0, toDate: () => new Date() },
           lastChecked: new Date(),
           updatedBy: user?.uid || 'system'
         });
@@ -102,11 +105,11 @@ export function BookConditionManager({ book, onUpdate }: BookConditionManagerPro
       const overallCondition = Object.entries(summary)
         .sort(([,a], [,b]) => b - a)[0][0] as 'good' | 'fair' | 'damaged' | 'lost';
 
-      const updatedBook = {
+      const updatedBook: Book = {
         ...book,
         condition: overallCondition,
         conditionDetails: updatedDetails,
-        updatedAt: new Date()
+        updatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0, toDate: () => new Date() }
       };
 
       await updateDoc(bookRef, {
@@ -172,6 +175,7 @@ export function BookConditionManager({ book, onUpdate }: BookConditionManagerPro
       copyId: newCopyForm.copyId,
       condition: newCopyForm.condition,
       notes: newCopyForm.notes || undefined,
+      dateRecorded: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0, toDate: () => new Date() },
       lastChecked: new Date(),
       updatedBy: user?.uid || 'unknown'
     };

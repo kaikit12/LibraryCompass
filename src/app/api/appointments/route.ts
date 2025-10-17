@@ -44,7 +44,11 @@ export async function GET(req: NextRequest) {
       const data = doc.data();
       return {
         id: doc.id,
-        ...data,
+        bookId: data.bookId || '',
+        readerId: data.readerId || data.userId || '',
+        scheduledDate: data.scheduledDate || data.pickupTime?.toDate?.() || new Date(),
+        status: data.status || 'pending',
+        type: data.type || 'pickup',
         pickupTime: data.pickupTime?.toDate?.() || new Date(),
         createdAt: data.createdAt?.toDate?.() || new Date(),
         confirmedAt: data.confirmedAt?.toDate?.() || null,

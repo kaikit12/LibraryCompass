@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { Appointment } from '@/lib/types';
+import { Appointment, toDate } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -190,7 +190,7 @@ export function MyAppointments() {
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Đặt lúc: {format(new Date(appointment.createdAt), 'HH:mm dd/MM/yyyy', { locale: vi })}
+                          Đặt lúc: {format(toDate(appointment.createdAt) || new Date(), 'HH:mm dd/MM/yyyy', { locale: vi })}
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">

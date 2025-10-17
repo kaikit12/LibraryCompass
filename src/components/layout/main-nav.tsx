@@ -38,11 +38,11 @@ export function MainNav() {
 
 
   const availableMainLinks = user?.role
-    ? mainLinks.filter(link => link.roles.includes(user.role))
+    ? mainLinks.filter(link => link.roles.includes(user.role!))
     : [];
 
   const availableReportLinks = user?.role
-    ? reportLinks.filter(link => link.roles.includes(user.role))
+    ? reportLinks.filter(link => link.roles.includes(user.role!))
     : [];
 
 

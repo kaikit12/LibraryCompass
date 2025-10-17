@@ -54,7 +54,15 @@ export function ReaderActions() {
 
   useEffect(() => {
     const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
-      const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), role: doc.data().role || 'reader' } as Reader));
+      const liveReaders = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(), 
+        role: doc.data().role || 'reader',
+        lateFees: doc.data().lateFees || 0,
+        emailVerified: doc.data().emailVerified || false,
+        memberId: doc.data().memberId,
+        borrowingHistory: doc.data().borrowingHistory || []
+      } as Reader));
       setReaders(liveReaders);
     });
       
@@ -76,7 +84,7 @@ export function ReaderActions() {
 
     return readers.map(reader => {
         const borrowedBookTitles = (reader.borrowedBooks || [])
-            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
+            .map((bookId: string) => bookTitleMap.get(bookId) || 'Unknown Book')
             .concat(reader.borrowingHistory || []); 
             
         const uniqueTitles = [...new Set(borrowedBookTitles)];
@@ -296,7 +304,7 @@ export function ReaderActions() {
                             <Badge variant="outline">{getBorrowedBooksCount(readerItem.id)}</Badge>
                             </TableCell>
                             <TableCell>
-                                <Badge variant={readerItem.lateFees > 0 ? 'destructive' : 'secondary'}>
+                                <Badge variant={(readerItem.lateFees || 0) > 0 ? 'destructive' : 'secondary'}>
                                     {formatCurrency(readerItem.lateFees || 0)}
                                 </Badge>
                             </TableCell>
@@ -395,7 +403,7 @@ export function ReaderActions() {
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Phí trễ</span>
-                            <Badge variant={readerItem.lateFees > 0 ? 'destructive' : 'secondary'}>
+                            <Badge variant={(readerItem.lateFees || 0) > 0 ? 'destructive' : 'secondary'}>
                                 {formatCurrency(readerItem.lateFees || 0)}
                             </Badge>
                         </div>

@@ -15,7 +15,7 @@ import {
   increment,
   Timestamp,
 } from 'firebase/firestore';
-import { Reservation } from '@/lib/types';
+import { Reservation, getTimestamp } from '@/lib/types';
 
 // GET /api/reservations - Get user's reservations or all reservations (admin)
 export async function GET(req: NextRequest) {
@@ -53,7 +53,12 @@ export async function GET(req: NextRequest) {
       const data = doc.data();
       return {
         id: doc.id,
-        ...data,
+        bookId: data.bookId || '',
+        readerId: data.readerId || data.userId || '',
+        status: data.status || 'active',
+        priority: data.priority || 1,
+        expirationDate: data.expirationDate || data.expiresAt?.toDate?.() || null,
+        notificationSent: data.notificationSent || false,
         createdAt: data.createdAt?.toDate?.() || new Date(),
         notifiedAt: data.notifiedAt?.toDate?.() || null,
         expiresAt: data.expiresAt?.toDate?.() || null,
@@ -64,7 +69,7 @@ export async function GET(req: NextRequest) {
     if (bookId) {
       reservations = reservations
         .filter(r => r.status === 'active')
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()); // FIFO order
+        .sort((a, b) => getTimestamp(a.createdAt) - getTimestamp(b.createdAt)); // FIFO order
       
       // Update queue positions
       reservations.forEach((res, index) => {
@@ -72,8 +77,8 @@ export async function GET(req: NextRequest) {
       });
     } else {
       // Sort by createdAt desc for user/admin view
-      reservations = reservations.sort((a, b) => 
-        b.createdAt.getTime() - a.createdAt.getTime()
+      reservations = reservations.sort((a, b) =>
+        getTimestamp(b.createdAt) - getTimestamp(a.createdAt)
       );
     }
 

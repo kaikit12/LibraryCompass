@@ -45,7 +45,7 @@ export function RouteGuard({
     }
 
     // Role-based access check
-    if (requiredRole && user.role !== requiredRole) {
+    if (requiredRole && user.role && user.role !== requiredRole) {
       // Check if user has sufficient privileges
       const roleHierarchy = ['reader', 'librarian', 'admin'];
       const userRoleIndex = roleHierarchy.indexOf(user.role);

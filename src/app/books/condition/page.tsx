@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Book } from '@/lib/types';
+import { Book, BookConditionDetail } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection } from 'firebase/firestore';
 import { safeOnSnapshot } from '@/lib/firebase';
@@ -63,7 +63,7 @@ export default function BookConditionPage() {
   const getConditionSummary = () => {
     const summary = books.reduce((acc, book) => {
       if (book.conditionDetails && book.conditionDetails.length > 0) {
-        book.conditionDetails.forEach(detail => {
+        book.conditionDetails.forEach((detail: BookConditionDetail) => {
           acc[detail.condition] = (acc[detail.condition] || 0) + 1;
         });
       } else {
@@ -83,7 +83,7 @@ export default function BookConditionPage() {
     if (selectedCondition === 'all') return matchesSearch;
     
     if (book.conditionDetails && book.conditionDetails.length > 0) {
-      return matchesSearch && book.conditionDetails.some(detail => detail.condition === selectedCondition);
+      return matchesSearch && book.conditionDetails.some((detail: BookConditionDetail) => detail.condition === selectedCondition);
     } else {
       return matchesSearch && book.condition === selectedCondition;
     }
@@ -213,7 +213,7 @@ export default function BookConditionPage() {
                             Chi tiết tình trạng ({book.conditionDetails.length} cuốn):
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            {book.conditionDetails.map(detail => {
+                            {book.conditionDetails.map((detail: BookConditionDetail) => {
                               const config = conditionColors[detail.condition as keyof typeof conditionColors];
                               const Icon = conditionIcons[detail.condition as keyof typeof conditionIcons];
                               

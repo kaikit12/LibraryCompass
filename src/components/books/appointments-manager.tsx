@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Appointment } from '@/lib/types';
+import { Appointment, toDate } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,11 @@ export function AppointmentsManager() {
             const data = doc.data();
             return {
               id: doc.id,
-              ...data,
+              bookId: data.bookId || '',
+              readerId: data.readerId || data.userId || '',
+              scheduledDate: data.scheduledDate || data.pickupTime?.toDate?.() || new Date(),
+              status: data.status || 'pending',
+              type: data.type || 'pickup',
               pickupTime: data.pickupTime?.toDate?.() || new Date(),
               createdAt: data.createdAt?.toDate?.() || new Date(),
               confirmedAt: data.confirmedAt?.toDate?.() || null,
@@ -287,7 +291,7 @@ export function AppointmentsManager() {
                       {getStatusBadge(appointment)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Đặt lúc: {format(new Date(appointment.createdAt), "dd/MM/yyyy HH:mm", { locale: vi })}
+                      Đặt lúc: {format(toDate(appointment.createdAt) || new Date(), "dd/MM/yyyy HH:mm", { locale: vi })}
                     </p>
                   </div>
                 </div>

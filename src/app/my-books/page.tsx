@@ -295,7 +295,7 @@ export default function MyBooksPage() {
                 <CardContent>
                     <p className="text-2xl font-bold">{formatCurrency(user.lateFees || 0)}</p>
                     <p className="text-sm text-muted-foreground">Vui lòng thanh toán các khoản phí còn nợ tại quầy thư viện.</p>
-                    {(user.role === 'admin' || user.role === 'librarian') && (user.lateFees > 0) && (
+                    {(user.role === 'admin' || user.role === 'librarian') && ((user.lateFees || 0) > 0) && (
                         <Button onClick={handleResetLateFees} disabled={isResetting} className="mt-2 gradient-primary text-white">
                             {isResetting ? 'Đang xử lý...' : 'Đã thanh toán phí trễ hạn'}
                         </Button>

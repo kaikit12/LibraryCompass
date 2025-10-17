@@ -37,7 +37,7 @@ export function AuthGuard({ children, requiredRole }: { children: React.ReactNod
     }
 
     // If a page declares requiredRole and the current user does not have one of those roles, redirect.
-    if (!loading && user && requiredRole && !requiredRole.includes(user.role)) {
+    if (!loading && user && requiredRole && user.role && !requiredRole.includes(user.role)) {
       router.push('/');
     }
   }, [user, loading, router, pathname, isAuthRoute]);

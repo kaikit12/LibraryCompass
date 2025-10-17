@@ -108,7 +108,7 @@ export function BookActions() {
 
     return readers.map(reader => {
         const borrowedBookTitles = (reader.borrowedBooks || [])
-            .map(bookId => bookTitleMap.get(bookId) || 'Unknown Book')
+            .map((bookId: string) => bookTitleMap.get(bookId) || 'Unknown Book')
             .concat(reader.borrowingHistory || []); 
             
         const uniqueTitles = [...new Set(borrowedBookTitles)];
@@ -245,7 +245,7 @@ export function BookActions() {
   
   const handleSaveBook = async () => {
     // Get genres array - filter out undefined/null/empty
-    let finalGenres: string[] = (editingBook?.genres || [editingBook?.genre]).filter((g): g is string => Boolean(g));
+    let finalGenres: string[] = (editingBook?.genres || [editingBook?.genre]).filter((g: any): g is string => Boolean(g));
     
     // Handle custom genre input
     if (customGenre.trim()) {
@@ -734,7 +734,7 @@ export function BookActions() {
               setSelectedBook(book);
               setIsBorrowOpen(true);
             }}
-            userBorrowedBooks={user?.borrowingHistory || []}
+            userBorrowedBooks={(user?.borrowingHistory as string[]) || []}
           />
         ) : viewMode === 'card' ? (
           <BookCardView 
@@ -779,7 +779,7 @@ export function BookActions() {
                     <TableCell><Badge variant="outline">{book.libraryId || 'Không có'}</Badge></TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {(book.genres || [book.genre]).filter(Boolean).slice(0, 2).map((genre, index) => (
+                        {(book.genres || [book.genre]).filter(Boolean).slice(0, 2).map((genre: any, index: number) => (
                           <Badge key={`${genre}-${index}`} variant="secondary" className="text-xs">
                             {genre}
                           </Badge>
@@ -794,7 +794,7 @@ export function BookActions() {
                     <TableCell>
                       {book.conditionDetails && book.conditionDetails.length > 0 ? (
                         <div className="space-y-1">
-                          {book.conditionDetails.slice(0, 3).map((detail, index) => (
+                          {book.conditionDetails.slice(0, 3).map((detail: any, index: number) => (
                             <div key={detail.copyId} className="flex items-center gap-2 text-xs">
                               <Badge 
                                 variant="outline" 
