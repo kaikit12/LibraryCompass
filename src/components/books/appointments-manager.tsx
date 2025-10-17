@@ -22,11 +22,6 @@ export function AppointmentsManager() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchId, setSearchId] = useState('');
 
-  // Don't render if user doesn't have proper access
-  if (!user || (user.role !== 'admin' && user.role !== 'librarian')) {
-    return null;
-  }
-
   useEffect(() => {
     // Only load appointments if user is authenticated and has proper role
     if (user && (user.role === 'admin' || user.role === 'librarian')) {
@@ -181,6 +176,11 @@ export function AppointmentsManager() {
       return <Badge variant="outline">Chờ đến</Badge>;
     }
   };
+
+  // Don't render if user doesn't have proper access
+  if (!user || (user.role !== 'admin' && user.role !== 'librarian')) {
+    return null;
+  }
 
   if (isLoading) {
     return (

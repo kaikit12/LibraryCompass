@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { LibrarySettings } from "@/lib/types";
@@ -81,9 +82,9 @@ export function AppFooter() {
           <div className="space-y-3">
             <h3 className="text-lg font-semibold">Liên kết</h3>
             <div className="space-y-2 text-sm">
-              <a href="/books" className="block text-muted-foreground hover:text-foreground transition-colors">
+              <Link href="/books" className="block text-muted-foreground hover:text-foreground transition-colors">
                 Kho sách
-              </a>
+              </Link>
               <a href="/my-books" className="block text-muted-foreground hover:text-foreground transition-colors">
                 Trang cá nhân
               </a>

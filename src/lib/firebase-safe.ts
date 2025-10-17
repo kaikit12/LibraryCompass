@@ -18,7 +18,7 @@ import { debugLog, debugWarn, debugError } from './firebase-config';
 // Global state to track Firebase status
 let isFirebaseInitialized = false;
 let isTerminated = false;
-let activeListeners = new Set<() => void>();
+const activeListeners = new Set<() => void>();
 
 // Initialize Firebase safely
 export async function initializeSafeFirebase(): Promise<boolean> {

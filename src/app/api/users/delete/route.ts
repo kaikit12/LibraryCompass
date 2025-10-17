@@ -10,7 +10,7 @@ let admin: any = null;
 let adminInitialized = false;
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const adminModule = require('firebase-admin');
 
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;

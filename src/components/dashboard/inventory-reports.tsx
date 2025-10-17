@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -539,10 +540,10 @@ export function InventoryReports() {
               </p>
               <div className="flex gap-3 justify-center">
                 <Button asChild>
-                  <a href="/books">
+                  <Link href="/books">
                     <Package className="h-4 w-4 mr-2" />
                     Thêm sách mới
-                  </a>
+                  </Link>
                 </Button>
                 <Button variant="outline" asChild>
                   <a href="/reports?tab=bulk">

@@ -126,7 +126,7 @@ export function BookActions() {
   }, [books]);
 
   const filteredBooks = useMemo(() => {
-    let result = books.filter(book => {
+    const result = books.filter(book => {
       const lowerCaseSearch = filters.searchTerm.toLowerCase();
       const searchMatch = book.title.toLowerCase().includes(lowerCaseSearch) || 
                         book.author.toLowerCase().includes(lowerCaseSearch) ||

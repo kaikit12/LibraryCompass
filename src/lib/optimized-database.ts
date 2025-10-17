@@ -109,7 +109,7 @@ export class OptimizedBookService {
         }
 
         try {
-            let booksQuery = collection(db, 'books');
+            const booksQuery = collection(db, 'books');
 
             // Apply filters
             const constraints: any[] = [];

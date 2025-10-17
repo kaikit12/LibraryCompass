@@ -33,11 +33,6 @@ export function RenewalRequestsManager() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [searchId, setSearchId] = useState('');
   
-  // Don't render if user doesn't have proper access
-  if (!user || (user.role !== 'admin' && user.role !== 'librarian')) {
-    return null;
-  }
-
   useEffect(() => {
     // Only load requests if user is authenticated and has proper role
     if (user && (user.role === 'admin' || user.role === 'librarian')) {
@@ -167,6 +162,11 @@ export function RenewalRequestsManager() {
       setProcessingId(null);
     }
   };
+
+  // Don't render if user doesn't have proper access
+  if (!user || (user.role !== 'admin' && user.role !== 'librarian')) {
+    return null;
+  }
 
   if (isLoading) {
     return (
