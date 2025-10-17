@@ -308,7 +308,7 @@ export function BookConditionManager({ book, onUpdate }: BookConditionManagerPro
                       </Badge>
                       {detail.notes && (
                         <span className="text-sm text-muted-foreground">
-                          "{detail.notes}"
+                          &ldquo;{detail.notes}&rdquo;
                         </span>
                       )}
                     </div>

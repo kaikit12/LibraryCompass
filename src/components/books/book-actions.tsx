@@ -1308,7 +1308,7 @@ export function BookActions() {
                       </div>
                       {editingBook.seriesOrder && editingBook.totalInSeries && (
                         <div className="text-sm font-medium text-center bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-900 dark:text-blue-100 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-                          📖 Tập <span className="font-bold text-lg">{editingBook.seriesOrder}</span>/{editingBook.totalInSeries} của bộ "<span className="font-semibold">{editingBook.series}</span>"
+                          📖 Tập <span className="font-bold text-lg">{editingBook.seriesOrder}</span>/{editingBook.totalInSeries} của bộ &ldquo;<span className="font-semibold">{editingBook.series}</span>&rdquo;
                         </div>
                       )}
                     </>

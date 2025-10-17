@@ -13,7 +13,7 @@ export function GoogleAuthInfo() {
           <strong>Popup bị chặn:</strong> Trình duyệt đang chặn popup Google Auth. 
         </p>
         <p>
-          <strong>Giải pháp:</strong> Sử dụng phương pháp <em>"Chuyển hướng"</em> bên dưới.
+          <strong>Giải pháp:</strong> Sử dụng phương pháp <em>&ldquo;Chuyển hướng&rdquo;</em> bên dưới.
         </p>
         <p>
           <strong>Cách thức:</strong> Bạn sẽ được chuyển đến trang Google, sau khi đăng nhập sẽ quay lại tự động.

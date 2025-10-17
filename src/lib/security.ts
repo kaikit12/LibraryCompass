@@ -68,7 +68,7 @@ interface ValidationSchema {
   [key: string]: ValidationRule;
 }
 
-export function validateInput(data: any, schema: ValidationSchema): { isValid: boolean; errors: string[] } {
+export function validateInput(data: Record<string, unknown>, schema: ValidationSchema): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
   
   for (const [key, rule] of Object.entries(schema)) {
@@ -82,11 +82,11 @@ export function validateInput(data: any, schema: ValidationSchema): { isValid: b
       errors.push(`${key} must be of type ${rule.type}`);
     }
     
-    if (rule.minLength && value && value.length < rule.minLength) {
+    if (rule.minLength && value && typeof value === 'string' && value.length < rule.minLength) {
       errors.push(`${key} must be at least ${rule.minLength} characters`);
     }
     
-    if (rule.maxLength && value && value.length > rule.maxLength) {
+    if (rule.maxLength && value && typeof value === 'string' && value.length > rule.maxLength) {
       errors.push(`${key} must be no more than ${rule.maxLength} characters`);
     }
   }

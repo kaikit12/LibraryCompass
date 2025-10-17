@@ -196,7 +196,7 @@ export function LowStockAlerts() {
             {searchId ? (
               <>
                 <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Không tìm thấy sách nào với từ khóa "{searchId}"</p>
+                <p>Không tìm thấy sách nào với từ khóa &ldquo;{searchId}&rdquo;</p>
               </>
             ) : (
               <>

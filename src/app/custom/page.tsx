@@ -199,7 +199,7 @@ export default function CustomPage() {
                 <ExternalLink className="h-3 w-3 mt-0.5" />
                 <span>
                   Cách lấy link ảnh:<br/>
-                  • Tìm ảnh trên Google → Click chuột phải → "Sao chép địa chỉ hình ảnh"<br/>
+                  • Tìm ảnh trên Google → Click chuột phải → &ldquo;Sao chép địa chỉ hình ảnh&rdquo;<br/>
                   • Hoặc upload lên <a href="https://imgur.com/upload" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Imgur</a> → Copy Direct Link
                 </span>
               </p>

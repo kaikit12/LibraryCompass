@@ -130,7 +130,7 @@ export function TwoFactorSettings({
           {isEnabled ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                If you want to disable 2FA, you'll need to verify your identity with a
+                If you want to disable 2FA, you&apos;ll need to verify your identity with a
                 verification code from your authenticator app.
               </p>
               <Button

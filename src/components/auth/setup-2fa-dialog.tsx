@@ -154,7 +154,7 @@ export function Setup2FADialog({
             </Alert>
 
             <div className="space-y-2">
-              <h4 className="font-medium">You'll need:</h4>
+              <h4 className="font-medium">You&apos;ll need:</h4>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>An authenticator app (Google Authenticator, Authy, etc.)</li>
                 <li>Your phone to scan the QR code</li>
