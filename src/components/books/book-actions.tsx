@@ -1103,14 +1103,14 @@ export function BookActions() {
                     <Label className="text-right pt-2 text-sm font-medium">Thể loại <span className="text-red-500">*</span></Label>
                     <div className="col-span-3 space-y-2">
                       <div className="flex flex-wrap gap-1.5 mb-2 min-h-[36px] p-2 bg-white dark:bg-gray-950 border rounded-md">
-                        {editingBook && ((editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g))).map((selectedGenre) => (
+                        {editingBook && ((editingBook.genres || [editingBook.genre]).filter((g: any): g is string => Boolean(g))).map((selectedGenre: string) => (
                           <Badge key={selectedGenre} variant="secondary" className="gap-1 text-xs">
                             {selectedGenre}
                             <X 
                               className="h-3 w-3 cursor-pointer hover:text-red-500 transition-colors" 
                               onClick={() => {
-                                const currentGenres = (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g));
-                                const newGenres = currentGenres.filter(g => g !== selectedGenre);
+                                const currentGenres = (editingBook.genres || [editingBook.genre]).filter((g: any): g is string => Boolean(g));
+                                const newGenres = currentGenres.filter((g: string) => g !== selectedGenre);
                                 setEditingBook({
                                   ...editingBook, 
                                   genres: newGenres,
@@ -1127,7 +1127,7 @@ export function BookActions() {
                       <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-1.5 bg-white dark:bg-gray-950">
                         {/* Predefined genres */}
                         {genres.map((genre) => {
-                          const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                          const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g: any): g is string => Boolean(g)) : [];
                           const isChecked = currentGenres.includes(genre);
                           return (
                             <div key={genre} className="flex items-center space-x-2 hover:bg-gray-50 dark:hover:bg-gray-900 p-1.5 rounded transition-colors">
@@ -1135,7 +1135,7 @@ export function BookActions() {
                                 id={`genre-${genre}`}
                                 checked={isChecked}
                                 onCheckedChange={(checked) => {
-                                  const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                                  const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g: any): g is string => Boolean(g)) : [];
                                   let newGenres: string[];
                                   if (checked) {
                                     newGenres = [...currentGenres, genre];
@@ -1144,7 +1144,7 @@ export function BookActions() {
                                       setCustomGenre("");
                                     }
                                   } else {
-                                    newGenres = currentGenres.filter(g => g !== genre);
+                                    newGenres = currentGenres.filter((g: string) => g !== genre);
                                     // Nếu bỏ chọn "Khác", xóa custom genre
                                     if (genre === 'Khác') {
                                       setCustomGenre("");
@@ -1174,7 +1174,7 @@ export function BookActions() {
                               <p className="text-xs text-muted-foreground mb-1.5 px-1">Thể loại tùy chỉnh:</p>
                             </div>
                             {customGenres.map((genre) => {
-                              const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                              const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g: any): g is string => Boolean(g)) : [];
                               const isChecked = currentGenres.includes(genre);
                               return (
                                 <div key={`custom-${genre}`} className="flex items-center space-x-2 hover:bg-gray-50 dark:hover:bg-gray-900 p-1.5 rounded transition-colors">
@@ -1182,12 +1182,12 @@ export function BookActions() {
                                     id={`custom-genre-${genre}`}
                                     checked={isChecked}
                                     onCheckedChange={(checked) => {
-                                      const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g): g is string => Boolean(g)) : [];
+                                      const currentGenres = editingBook ? (editingBook.genres || [editingBook.genre]).filter((g: any): g is string => Boolean(g)) : [];
                                       let newGenres: string[];
                                       if (checked) {
                                         newGenres = [...currentGenres, genre];
                                       } else {
-                                        newGenres = currentGenres.filter(g => g !== genre);
+                                        newGenres = currentGenres.filter((g: string) => g !== genre);
                                       }
                                       setEditingBook({
                                         ...editingBook,

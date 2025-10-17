@@ -117,8 +117,8 @@ export function PersonalizedRecommendationsDialog({ readers, isOpen, setIsOpen }
                                 <CardContent className="pt-6">
                                     <h3 className="font-semibold mb-2">Lịch sử mượn của {selectedReader.name}</h3>
                                     <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                                    {(selectedReader.borrowingHistory && selectedReader.borrowingHistory.length > 0) ? selectedReader.borrowingHistory.map(title => (
-                                        <Badge key={title} variant="secondary">{title}</Badge>
+                                    {(selectedReader.borrowingHistory && selectedReader.borrowingHistory.length > 0) ? (selectedReader.borrowingHistory as string[]).map((title: string, index: number) => (
+                                        <Badge key={`${title}-${index}`} variant="secondary">{title}</Badge>
                                     )) : <p className="text-sm text-muted-foreground">Chưa có lịch sử mượn.</p>}
                                     </div>
                                 </CardContent>

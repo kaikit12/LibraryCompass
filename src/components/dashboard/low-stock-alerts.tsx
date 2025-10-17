@@ -43,7 +43,23 @@ export function LowStockAlerts() {
   }, []);
 
   // Filter to get low stock books with stock levels
-  const lowStockBooks: LowStockBook[] = books
+  const lowStockBooks: (LowStockBook & { available: number })[] = books
+    .map(book => {
+      // Calculate available count
+      let available = book.quantity || 0;
+      if (book.conditionDetails && book.conditionDetails.length > 0) {
+        // Count good/fair condition copies
+        available = book.conditionDetails.filter((detail: any) => 
+          detail.condition === 'good' || detail.condition === 'fair' || detail.condition === 'new'
+        ).length;
+      } else {
+        // Use general condition and quantity
+        if (book.condition === 'lost' || book.condition === 'damaged') {
+          available = 0;
+        }
+      }
+      return { ...book, available };
+    })
     .filter(book => {
       // Only include books that are in good condition and not lost
       if (book.condition === 'lost') return false;

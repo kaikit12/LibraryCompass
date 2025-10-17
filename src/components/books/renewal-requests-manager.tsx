@@ -48,7 +48,11 @@ export function RenewalRequestsManager() {
             const data = doc.data();
             return {
               id: doc.id,
-              ...data,
+              borrowRecordId: data.borrowRecordId || '',
+              readerId: data.readerId || data.userId || '',
+              bookId: data.bookId || '',
+              requestedAt: data.requestedAt || data.createdAt?.toDate?.() || new Date(),
+              status: data.status || 'pending',
               currentDueDate: data.currentDueDate?.toDate?.() || new Date(),
               createdAt: data.createdAt?.toDate?.() || new Date(),
               processedAt: data.processedAt?.toDate?.() || null,

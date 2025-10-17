@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Reservation } from '@/lib/types';
+import { Reservation, getTimestamp, toDate } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -57,10 +57,14 @@ export function MyReservations({ userId }: MyReservationsProps) {
           const reservation: Reservation = {
             id: doc.id,
             bookId: data.bookId || '',
+            readerId: data.readerId || data.userId || '',
             userId: data.userId || '',
             bookTitle: data.bookTitle || data.title || 'Không rõ',
             userName: data.userName || data.user?.name || 'Người dùng',
             status: data.status || 'active',
+            priority: data.priority || 1,
+            expirationDate: data.expirationDate || data.expiresAt?.toDate?.() || null,
+            notificationSent: data.notificationSent || false,
             createdAt,
             position: typeof data.position === 'number' ? data.position : undefined,
             notifiedAt: data.notifiedAt?.toDate?.() || (data.notifiedAt ? new Date(data.notifiedAt) : undefined),
@@ -71,7 +75,7 @@ export function MyReservations({ userId }: MyReservationsProps) {
         });
 
         // Sort by createdAt desc (newest first)
-  reservationsList.sort((a: Reservation, b: Reservation) => b.createdAt.getTime() - a.createdAt.getTime());
+  reservationsList.sort((a: Reservation, b: Reservation) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
         
         setReservations(reservationsList);
         setIsLoading(false);
@@ -200,7 +204,7 @@ export function MyReservations({ userId }: MyReservationsProps) {
                     </Badge>
                   )}
                   <span className="text-xs text-muted-foreground">
-                    Đặt lúc: {new Date(reservation.createdAt).toLocaleDateString('vi-VN')}
+                    Đặt lúc: {(toDate(reservation.createdAt) || new Date()).toLocaleDateString('vi-VN')}
                   </span>
                 </div>
                 {reservation.status === 'fulfilled' && reservation.expiresAt && (

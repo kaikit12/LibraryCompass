@@ -87,12 +87,16 @@ export function ReserveButton({ bookId, bookTitle, isAvailable, className }: Res
       setReservation({
         id: data.reservationId,
         bookId,
+        readerId: user.id,
         userId: user.id,
         bookTitle,
         userName: user.name,
         status: 'active',
+        priority: 1,
+        expirationDate: { seconds: Math.floor((Date.now() + 7 * 24 * 60 * 60 * 1000) / 1000), nanoseconds: 0, toDate: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+        notificationSent: false,
         position: data.position,
-        createdAt: new Date(),
+        createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0, toDate: () => new Date() },
       });
     } catch (error: any) {
       toast({

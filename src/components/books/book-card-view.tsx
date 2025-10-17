@@ -218,7 +218,7 @@ export function BookCardView({
                   )}
                   
                   {/* Genres */}
-                  {(book.genres || [book.genre]).filter(Boolean).map((genre, index) => (
+                  {(book.genres || [book.genre]).filter(Boolean).map((genre: any, index: number) => (
                     <Badge 
                       key={`${genre}-${index}`} 
                       variant="secondary" 
