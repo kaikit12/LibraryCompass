@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
 import type { Book } from '@/lib/types';
 import { Skeleton } from '../ui/skeleton';
 
@@ -30,16 +30,16 @@ export function GenreDistributionChart() {
         const booksRef = collection(db, 'books');
         const borrowalsRef = query(collection(db, 'borrowals'), where('status', '==', 'borrowed'));
 
-        const unsubBooks = onSnapshot(booksRef, (booksSnapshot) => {
-            const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
+        const unsubBooks = safeOnSnapshot(booksRef, (booksSnapshot: any) => {
+            const booksMap = new Map(booksSnapshot.docs.map((doc: any) => [doc.id, doc.data() as Book]));
 
-            const unsubBorrowals = onSnapshot(borrowalsRef, (borrowalsSnapshot) => {
+            const unsubBorrowals = safeOnSnapshot(borrowalsRef, (borrowalsSnapshot: any) => {
                 setLoading(true);
                 const genreCounts: { [key: string]: number } = {};
 
-                borrowalsSnapshot.forEach(doc => {
+                borrowalsSnapshot.forEach((doc: any) => {
                     const bookId = doc.data().bookId;
-                    const book = booksMap.get(bookId);
+                    const book = booksMap.get(bookId) as Book | undefined;
                     if (book?.genre) {
                         genreCounts[book.genre] = (genreCounts[book.genre] || 0) + 1;
                     }

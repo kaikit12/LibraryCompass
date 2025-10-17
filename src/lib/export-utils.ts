@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Book, Borrowal, User } from './types';
+import { Book, BorrowRecord, Reader, FirebaseTimestamp } from './types';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -33,7 +33,7 @@ export function exportToCSV<T extends Record<string, any>>(
 /**
  * Export borrowing history to CSV
  */
-export function exportBorrowingHistoryToCSV(borrowals: Borrowal[], books: Book[]) {
+export function exportBorrowingHistoryToCSV(borrowals: BorrowRecord[], books: Book[]) {
   const bookMap = new Map(books.map(b => [b.id, b]));
   
   const data = borrowals.map(b => {
@@ -44,10 +44,10 @@ export function exportBorrowingHistoryToCSV(borrowals: Borrowal[], books: Book[]
       'Tác giả': book?.author || 'N/A',
       'Người mượn': b.userName,
       'Email': b.userEmail,
-      'Ngày mượn': format(b.borrowedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: vi }),
-      'Ngày hết hạn': format(b.dueDate.toDate(), 'dd/MM/yyyy', { locale: vi }),
-      'Ngày trả': b.returnedAt ? format(b.returnedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: vi }) : 'Chưa trả',
-      'Trạng thái': b.returnedAt ? 'Đã trả' : (new Date() > b.dueDate.toDate() ? 'Quá hạn' : 'Đang mượn'),
+      'Ngày mượn': format((b.borrowedAt as FirebaseTimestamp).toDate(), 'dd/MM/yyyy HH:mm', { locale: vi }),
+      'Ngày hết hạn': format((b.dueDate as FirebaseTimestamp).toDate(), 'dd/MM/yyyy', { locale: vi }),
+      'Ngày trả': b.returnedAt ? format((b.returnedAt as FirebaseTimestamp).toDate(), 'dd/MM/yyyy HH:mm', { locale: vi }) : 'Chưa trả',
+      'Trạng thái': b.returnedAt ? 'Đã trả' : (new Date() > (b.dueDate as FirebaseTimestamp).toDate() ? 'Quá hạn' : 'Đang mượn'),
     };
   });
 
@@ -81,23 +81,23 @@ export function exportInventoryToCSV(books: Book[]) {
 /**
  * Export overdue books to CSV
  */
-export function exportOverdueBooksToCSV(borrowals: Borrowal[], books: Book[]) {
+export function exportOverdueBooksToCSV(borrowals: BorrowRecord[], books: Book[]) {
   const bookMap = new Map(books.map(b => [b.id, b]));
   const now = new Date();
   
   const overdueData = borrowals
-    .filter(b => !b.returnedAt && b.dueDate.toDate() < now)
+    .filter(b => !b.returnedAt && (b.dueDate as FirebaseTimestamp).toDate() < now)
     .map(b => {
       const book = bookMap.get(b.bookId);
-      const daysOverdue = Math.floor((now.getTime() - b.dueDate.toDate().getTime()) / (1000 * 60 * 60 * 24));
+      const daysOverdue = Math.floor((now.getTime() - (b.dueDate as FirebaseTimestamp).toDate().getTime()) / (1000 * 60 * 60 * 24));
       
       return {
         'Tên sách': book?.title || 'N/A',
         'Mã sách': book?.libraryId || 'N/A',
         'Người mượn': b.userName,
         'Email': b.userEmail,
-        'Ngày mượn': format(b.borrowedAt.toDate(), 'dd/MM/yyyy', { locale: vi }),
-        'Ngày hết hạn': format(b.dueDate.toDate(), 'dd/MM/yyyy', { locale: vi }),
+        'Ngày mượn': format((b.borrowedAt as FirebaseTimestamp).toDate(), 'dd/MM/yyyy', { locale: vi }),
+        'Ngày hết hạn': format((b.dueDate as FirebaseTimestamp).toDate(), 'dd/MM/yyyy', { locale: vi }),
         'Số ngày quá hạn': daysOverdue,
       };
     });
@@ -109,7 +109,7 @@ export function exportOverdueBooksToCSV(borrowals: Borrowal[], books: Book[]) {
 /**
  * Export user list to CSV
  */
-export function exportUsersToCSV(users: User[]) {
+export function exportUsersToCSV(users: Reader[]) {
   const data = users.map(user => ({
     'Tên': user.name,
     'Email': user.email,
@@ -123,7 +123,7 @@ export function exportUsersToCSV(users: User[]) {
 /**
  * Export borrowing history to PDF
  */
-export function exportBorrowingHistoryToPDF(borrowals: Borrowal[], books: Book[]) {
+export function exportBorrowingHistoryToPDF(borrowals: BorrowRecord[], books: Book[]) {
   const doc = new jsPDF();
   const bookMap = new Map(books.map(b => [b.id, b]));
 
@@ -141,10 +141,10 @@ export function exportBorrowingHistoryToPDF(borrowals: Borrowal[], books: Book[]
     return [
       book?.title || 'N/A',
       b.userName,
-      format(b.borrowedAt.toDate(), 'dd/MM/yyyy', { locale: vi }),
-      format(b.dueDate.toDate(), 'dd/MM/yyyy', { locale: vi }),
-      b.returnedAt ? format(b.returnedAt.toDate(), 'dd/MM/yyyy', { locale: vi }) : 'Chưa trả',
-      b.returnedAt ? 'Đã trả' : (new Date() > b.dueDate.toDate() ? 'Quá hạn' : 'Đang mượn'),
+      format((b.borrowedAt as FirebaseTimestamp).toDate(), 'dd/MM/yyyy', { locale: vi }),
+      format((b.dueDate as FirebaseTimestamp).toDate(), 'dd/MM/yyyy', { locale: vi }),
+      b.returnedAt ? format((b.returnedAt as FirebaseTimestamp).toDate(), 'dd/MM/yyyy', { locale: vi }) : 'Chưa trả',
+      b.returnedAt ? 'Đã trả' : (new Date() > (b.dueDate as FirebaseTimestamp).toDate() ? 'Quá hạn' : 'Đang mượn'),
     ];
   });
 
@@ -217,12 +217,12 @@ export function exportInventoryToPDF(books: Book[]) {
 /**
  * Export overdue books to PDF
  */
-export function exportOverdueBooksToPDF(borrowals: Borrowal[], books: Book[]) {
+export function exportOverdueBooksToPDF(borrowals: BorrowRecord[], books: Book[]) {
   const doc = new jsPDF();
   const bookMap = new Map(books.map(b => [b.id, b]));
   const now = new Date();
   
-  const overdueData = borrowals.filter(b => !b.returnedAt && b.dueDate.toDate() < now);
+  const overdueData = borrowals.filter(b => !b.returnedAt && (b.dueDate as FirebaseTimestamp).toDate() < now);
 
   // Title
   doc.setFontSize(18);
@@ -235,14 +235,14 @@ export function exportOverdueBooksToPDF(borrowals: Borrowal[], books: Book[]) {
   // Table data
   const tableData = overdueData.map(b => {
     const book = bookMap.get(b.bookId);
-    const daysOverdue = Math.floor((now.getTime() - b.dueDate.toDate().getTime()) / (1000 * 60 * 60 * 24));
+    const daysOverdue = Math.floor((now.getTime() - (b.dueDate as FirebaseTimestamp).toDate().getTime()) / (1000 * 60 * 60 * 24));
     
     return [
       book?.title || 'N/A',
       book?.libraryId || 'N/A',
       b.userName,
       b.userEmail,
-      format(b.dueDate.toDate(), 'dd/MM/yyyy', { locale: vi }),
+      format((b.dueDate as FirebaseTimestamp).toDate(), 'dd/MM/yyyy', { locale: vi }),
       daysOverdue.toString(),
     ];
   });

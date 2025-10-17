@@ -19,10 +19,12 @@
 
 # production
 /build
+/build
 
 # misc
 .DS_Store
 *.pem
+Thumbs.db
 
 # debug
 npm-debug.log*
@@ -38,12 +40,34 @@ yarn-error.log*
 next-env.d.ts
 
 .genkit/*
-.env*
 
-# firebase
+# 🔒 SECURITY: Environment files (NEVER COMMIT THESE!)
+.env*
+!.env.example
+!.env.production.example
+
+# 🔒 SECURITY: Firebase credentials
 firebase-debug.log
 firestore-debug.log
 serviceAccountKey.json
+firebase-adminsdk-*.json
+
+# 🔒 SECURITY: Build artifacts that may contain sensitive data
+/.next/static/**/*.js.map
+/.next/server/**/*.js.map
+*.map
+
+# 🔒 SECURITY: Temporary files
+.tmp/
+tmp/
+.cache/
+
+# 🔒 SECURITY: Production ready marker
+.production-ready
+
+# 🔒 SECURITY: Logs that may contain sensitive information
+*.log
+logs/
 
 # documentation (private)
 docs/blueprint.md

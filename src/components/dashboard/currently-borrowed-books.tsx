@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Search } from 'lucide-react';
@@ -36,20 +36,20 @@ export default function CurrentlyBorrowedBooks() {
     const booksQuery = collection(db, "books");
     const readersQuery = collection(db, "users");
 
-    const unsubBorrowals = onSnapshot(borrowalsQuery, (borrowalsSnapshot) => {
-        const unsubBooks = onSnapshot(booksQuery, (booksSnapshot) => {
-            const unsubReaders = onSnapshot(readersQuery, (readersSnapshot) => {
+    const unsubBorrowals = safeOnSnapshot(borrowalsQuery, (borrowalsSnapshot: any) => {
+        const unsubBooks = safeOnSnapshot(booksQuery, (booksSnapshot: any) => {
+            const unsubReaders = safeOnSnapshot(readersQuery, (readersSnapshot: any) => {
                 setLoading(true);
-                const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
-                const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, doc.data() as Reader]));
+                const booksMap = new Map(booksSnapshot.docs.map((doc: any) => [doc.id, doc.data() as Book]));
+                const readersMap = new Map(readersSnapshot.docs.map((doc: any) => [doc.id, doc.data() as Reader]));
 
                 const newBorrowedEntries: BorrowedEntry[] = [];
-                borrowalsSnapshot.forEach(doc => {
+                borrowalsSnapshot.forEach((doc: any) => {
                     const borrowalData = doc.data();
                     const borrowedAt = borrowalData.borrowedAt.toDate();
                     const dueDate = borrowalData.dueDate.toDate();
-                    const user = readersMap.get(borrowalData.userId);
-                    const book = booksMap.get(borrowalData.bookId);
+                    const user = readersMap.get(borrowalData.userId) as Reader | undefined;
+                    const book = booksMap.get(borrowalData.bookId) as Book | undefined;
 
                     if (user && book) {
                         newBorrowedEntries.push({

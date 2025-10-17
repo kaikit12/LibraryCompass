@@ -10,8 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, format, isPast } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Bell, Check, Search } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import { createNotification } from '@/lib/notifications';
 
 interface OverdueEntry {
@@ -35,23 +35,23 @@ export default function OverdueBooks() {
     const readersQuery = collection(db, "users");
 
     // This is a multi-listener setup. It's a bit complex, but ensures data is always in sync.
-    const unsubBorrowals = onSnapshot(borrowalsQuery, (borrowalsSnapshot) => {
-        const unsubBooks = onSnapshot(booksQuery, (booksSnapshot) => {
-            const unsubReaders = onSnapshot(readersQuery, (readersSnapshot) => {
+    const unsubBorrowals = safeOnSnapshot(borrowalsQuery, (borrowalsSnapshot: any) => {
+        const unsubBooks = safeOnSnapshot(booksQuery, (booksSnapshot: any) => {
+            const unsubReaders = safeOnSnapshot(readersQuery, (readersSnapshot: any) => {
                 setLoading(true);
-                const booksMap = new Map(booksSnapshot.docs.map(doc => [doc.id, doc.data() as Book]));
-                const readersMap = new Map(readersSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() } as Reader]));
+                const booksMap = new Map(booksSnapshot.docs.map((doc: any) => [doc.id, doc.data() as Book]));
+                const readersMap = new Map(readersSnapshot.docs.map((doc: any) => [doc.id, { id: doc.id, ...doc.data() } as Reader]));
                 
                 const newOverdueEntries: OverdueEntry[] = [];
                 const today = new Date();
 
-        borrowalsSnapshot.forEach(doc => {
+        borrowalsSnapshot.forEach((doc: any) => {
           const borrowalData = doc.data();
           const dueDate = borrowalData.dueDate.toDate();
                     
                     if (isPast(dueDate)) {
-                        const user = readersMap.get(borrowalData.userId);
-                        const book = booksMap.get(borrowalData.bookId);
+                        const user = readersMap.get(borrowalData.userId) as Reader | undefined;
+                        const book = booksMap.get(borrowalData.bookId) as Book | undefined;
                         
                         if (user && book) {
                             const daysOverdue = differenceInDays(today, dueDate);

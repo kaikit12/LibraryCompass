@@ -49,9 +49,13 @@ export function BookConditionManager({ book, onUpdate }: BookConditionManagerPro
   const [conditionDetails, setConditionDetails] = useState<BookConditionDetail[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editingCopy, setEditingCopy] = useState<BookConditionDetail | null>(null);
-  const [newCopyForm, setNewCopyForm] = useState({
+  const [newCopyForm, setNewCopyForm] = useState<{
+    copyId: string;
+    condition: BookConditionDetail['condition'];
+    notes?: string;
+  }>({
     copyId: '',
-    condition: 'good' as const,
+    condition: 'good',
     notes: ''
   });
 
@@ -175,7 +179,7 @@ export function BookConditionManager({ book, onUpdate }: BookConditionManagerPro
     const updatedDetails = [...conditionDetails, newDetail];
     updateBookCondition(updatedDetails);
     
-    setNewCopyForm({ copyId: '', condition: 'good', notes: '' });
+  setNewCopyForm(prev => ({ ...prev, copyId: '', condition: 'good', notes: '' }));
   };
 
   const handleDeleteCopy = (copyId: string) => {

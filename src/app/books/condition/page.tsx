@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Book } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
+import { safeOnSnapshot } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -44,16 +45,19 @@ export default function BookConditionPage() {
   const [selectedCondition, setSelectedCondition] = useState<string>('all');
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'books'), (snapshot) => {
-      const booksData = snapshot.docs.map(doc => ({
+    const unsubscribe = safeOnSnapshot(collection(db, 'books'), (snapshot: any) => {
+      const booksData = snapshot.docs.map((doc: any) => ({
         id: doc.id,
         ...doc.data()
       })) as Book[];
       setBooks(booksData);
       setLoading(false);
+    }, (err) => {
+      console.error('Permission or listener error loading books:', err);
+      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, []);
 
   const getConditionSummary = () => {

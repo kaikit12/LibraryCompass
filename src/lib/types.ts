@@ -1,169 +1,194 @@
+// Core Firebase types
+export interface FirebaseTimestamp {
+  seconds: number;
+  nanoseconds: number;
+  toDate(): Date;
+}
+
+export interface FirebaseDocumentSnapshot {
+  id: string;
+  exists(): boolean;
+  data(): Record<string, any>;
+}
+
+export interface FirebaseQuerySnapshot {
+  docs: FirebaseDocumentSnapshot[];
+  size: number;
+  empty: boolean;
+}
+
+// Error types
+export interface FirebaseError {
+  code: string;
+  message: string;
+}
+
+// Performance metric types
+export interface PerformanceMetric {
+  name: string;
+  value: number;
+  id: string;
+}
+
+// Validation types
+export interface ValidationRule {
+  required?: boolean;
+  type?: string;
+  minLength?: number;
+  maxLength?: number;
+}
+
+export interface ValidationSchema {
+  [key: string]: ValidationRule;
+}
+
+// Export existing types
 export interface Book {
   id: string;
   title: string;
   author: string;
-  genre: string; // Deprecated: kept for backward compatibility
-  genres?: string[]; // New: multiple genres support
-  status: 'Available' | 'Borrowed';
-  quantity: number;
-  available: number;
-  condition: 'good' | 'fair' | 'damaged' | 'lost'; // Overall condition (for backward compatibility)
-  conditionDetails?: BookConditionDetail[]; // Detailed condition tracking per copy
-  libraryId?: string; // Custom ID for library management
-  lateFeePerDay?: number;
-  imageUrl?: string;
+  isbn?: string;
+  genre: string;
   description?: string;
-  reservationCount?: number; // Number of active reservations
-  isbn?: string; // International Standard Book Number
-  publicationYear?: number; // Year published
-  rating?: number; // Average rating (0-5)
-  reviewCount?: number; // Number of reviews
-  totalBorrows?: number; // Total times borrowed (for popularity)
-  // Series management
-  series?: string; // Series name (e.g., "Harry Potter")
-  seriesOrder?: number; // Order in series (1, 2, 3...)
-  totalInSeries?: number; // Total books in series (e.g., 7)
-  // Timestamps
-  createdAt?: any; // Firestore timestamp
-  updatedAt?: any; // Firestore timestamp
+  coverUrl?: string;
+  totalCopies: number;
+  availableCopies: number;
+  createdAt: FirebaseTimestamp;
+  updatedAt: FirebaseTimestamp;
+  rating?: number;
+  totalRatings?: number;
+  location?: string;
+  condition?: 'new' | 'good' | 'fair' | 'poor';
+  publishedYear?: number;
+  language?: string;
+  pages?: number;
+  publisher?: string;
+  series?: string;
+  seriesNumber?: number;
+  tags?: string[];
+  [key: string]: any;
 }
 
 export interface Reader {
-  id: string; // firebase uid
-  uid: string;
-  memberId?: number; // Sequential member ID (e.g., 1, 2, 3...)
+  id: string;
   name: string;
   email: string;
-  phone: string;
-  emailVerified?: boolean; // Email verification status
-  booksOut: number;
-  borrowedBooks: string[]; // array of book document ids
-  lateFees: number;
-  borrowingHistory: string[]; // array of historical book ids
-  role: 'admin' | 'librarian' | 'reader';
-  // 2FA fields
-  twoFactorEnabled?: boolean; // Whether 2FA is enabled
-  twoFactorSecret?: string; // TOTP secret (encrypted)
+  phoneNumber?: string;
+  address?: string;
+  membershipType: 'basic' | 'premium' | 'student';
+  joinDate: FirebaseTimestamp;
+  status: 'active' | 'suspended' | 'expired';
+  borrowLimit: number;
+  currentBorrowedBooks: number;
+  totalBorrowedBooks: number;
+  overdueCount: number;
+  fines: number;
+  preferences?: {
+    genres: string[];
+    authors: string[];
+    notifications: boolean;
+  };
+  [key: string]: any;
 }
 
-// Alias for Reader (commonly used as User in auth context)
-export type User = Reader;
-
-// Borrowal record interface
-export interface Borrowal {
+export interface BorrowRecord {
   id: string;
   bookId: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  borrowedAt: any; // Firestore Timestamp
-  dueDate: any; // Firestore Timestamp
-  returnedAt?: any; // Firestore Timestamp
-}
-
-export interface Notification {
-  id: string;
-  message: string;
-  type: 'success' | 'warning' | 'info' | 'error';
-  createdAt?: Date; // normalized in UI when reading from Firestore
-  isRead: boolean;
+  readerId: string;
+  borrowedAt: FirebaseTimestamp;
+  dueDate: FirebaseTimestamp;
+  returnedAt?: FirebaseTimestamp;
+  renewalCount: number;
+  status: 'active' | 'returned' | 'overdue' | 'lost';
+  fineAmount?: number;
+  notes?: string;
+  [key: string]: any;
 }
 
 export interface Reservation {
   id: string;
   bookId: string;
-  userId: string;
-  bookTitle: string;
-  userName: string;
-  status: 'active' | 'fulfilled' | 'cancelled';
-  createdAt: Date;
-  position?: number; // Queue position (1 = next in line)
-  notifiedAt?: Date; // When user was notified book is available
-  expiresAt?: Date; // Reservation expires after 48 hours if not borrowed
-}
-
-export interface RenewalRequest {
-  id: string;
-  borrowalId: string;
-  bookId: string;
-  userId: string;
-  bookTitle: string;
-  userName: string;
-  currentDueDate: Date;
-  requestedDays: number; // Number of days to extend (default 14)
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: Date;
-  processedAt?: Date;
-  processedBy?: string; // Admin/Librarian who processed the request
-  rejectionReason?: string;
-}
-
-export interface Appointment {
-  id: string;
-  bookId: string;
-  userId: string;
-  bookTitle: string;
-  userName: string;
-  userMemberId?: number;
-  pickupTime: Date; // Thời gian đến nhận sách
-  agreedToTerms: boolean; // Đồng ý điều khoản trễ 2h
-  status: 'pending' | 'confirmed' | 'cancelled' | 'expired'; // expired = quá 2h không đến
-  createdAt: Date;
-  confirmedAt?: Date;
-  confirmedBy?: string; // Admin/Librarian ID who confirmed
-  borrowalId?: string; // ID của borrowal được tạo sau khi confirm
-  cancellationReason?: string;
-}
-
-export interface Transaction {
-  id: string;
-  userId: string;
-  bookId: string;
-  borrowalId: string;
-  amount: number;
-  type: 'late_fee' | 'payment';
-  createdAt?: Date;
+  readerId: string;
+  createdAt: FirebaseTimestamp;
+  status: 'pending' | 'fulfilled' | 'cancelled' | 'expired';
+  priority: number;
+  expirationDate: FirebaseTimestamp;
+  notificationSent: boolean;
+  fulfilledAt?: FirebaseTimestamp;
+  [key: string]: any;
 }
 
 export interface Review {
   id: string;
   bookId: string;
-  userId: string;
-  userName: string;
-  rating: number; // 1-5 stars
-  comment: string;
-  createdAt: Date;
-  updatedAt?: Date;
-  helpfulCount?: number; // Number of users who found review helpful
+  readerId: string;
+  rating: number;
+  comment?: string;
+  createdAt: FirebaseTimestamp;
+  helpfulVotes: number;
+  verified: boolean;
+  [key: string]: any;
 }
 
-export interface Wishlist {
+export interface Appointment {
   id: string;
-  userId: string;
   bookId: string;
-  bookTitle: string;
-  bookAuthor: string;
-  bookImageUrl?: string;
-  addedAt: Date;
-  priority?: 'low' | 'medium' | 'high'; // Reading priority
-  notes?: string; // Personal notes about why they want to read it
+  readerId: string;
+  scheduledDate: FirebaseTimestamp;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+  type: 'pickup' | 'return';
+  notes?: string;
+  createdAt: FirebaseTimestamp;
+  completedAt?: FirebaseTimestamp;
+  [key: string]: any;
 }
 
-export interface BookConditionDetail {
-  copyId: string; // Unique identifier for each physical copy (e.g., "001", "002")
-  condition: 'good' | 'fair' | 'damaged' | 'lost';
-  notes?: string; // Optional notes about the condition
-  lastChecked?: any; // Firestore timestamp when condition was last checked
-  updatedBy?: string; // User ID who last updated the condition
-}
-
-export interface LibrarySettings {
+export interface Notification {
   id: string;
-  logoUrl?: string;
-  libraryName?: string;
-  copyright?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  updatedAt?: Date;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success' | 'error';
+  read: boolean;
+  createdAt: FirebaseTimestamp;
+  actionUrl?: string;
+  [key: string]: any;
+}
+
+export interface WishlistItem {
+  id: string;
+  readerId: string;
+  bookTitle: string;
+  author: string;
+  isbn?: string;
+  createdAt: FirebaseTimestamp;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'available' | 'notified';
+  [key: string]: any;
+}
+
+export interface Fine {
+  id: string;
+  readerId: string;
+  borrowRecordId?: string;
+  amount: number;
+  reason: 'overdue' | 'damage' | 'loss' | 'other';
+  status: 'pending' | 'paid' | 'waived';
+  createdAt: FirebaseTimestamp;
+  paidAt?: FirebaseTimestamp;
+  description?: string;
+  [key: string]: any;
+}
+
+export interface Users {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'librarian' | 'member';
+  createdAt: FirebaseTimestamp;
+  lastLoginAt?: FirebaseTimestamp;
+  isActive: boolean;
+  avatar?: string;
+  preferences?: Record<string, any>;
+  [key: string]: any;
 }

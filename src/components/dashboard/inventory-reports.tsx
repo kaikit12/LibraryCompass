@@ -36,7 +36,8 @@ import {
 } from 'lucide-react';
 import { Book } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { safeOnSnapshot } from '@/lib/firebase';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -95,44 +96,25 @@ export function InventoryReports() {
   useEffect(() => {
     const loadBooks = () => {
       // Try simple query first without orderBy
-      const unsubscribe = onSnapshot(
+      const unsubscribe = safeOnSnapshot(
         collection(db, 'books'),
-        (snapshot) => {
-          const booksList = snapshot.docs.map(doc => ({
+        (snapshot: any) => {
+          const booksList = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
           })) as Book[];
-          
+
           console.log('📚 Inventory Reports - Loaded books:', booksList.length, booksList);
           setBooks(booksList);
           setLoading(false);
         },
-        (error) => {
+        (error: any) => {
           console.error('Inventory Reports - Error listening to books:', error);
-          
-          // Fallback: try with getDocs instead of onSnapshot
-          const loadBooksSnapshot = async () => {
-            try {
-              const snapshot = await getDocs(collection(db, 'books'));
-              const booksList = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-              })) as Book[];
-              
-              console.log('📚 Inventory Reports - Fallback loaded books:', booksList.length, booksList);
-              setBooks(booksList);
-            } catch (fallbackError) {
-              console.error('Inventory Reports - Fallback error:', fallbackError);
-            } finally {
-              setLoading(false);
-            }
-          };
-          
-          loadBooksSnapshot();
+          setLoading(false);
         }
       );
 
-      return unsubscribe;
+      return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
     };
 
     const unsubscribe = loadBooks();
@@ -265,19 +247,23 @@ export function InventoryReports() {
 
     console.log('📊 Final condition counts before mapping:', conditionCounts);
 
-    const conditionMapping = {
-      'good': { name: 'Tốt', color: '#22c55e' },
-      'fair': { name: 'Khá', color: '#3b82f6' },
-      'damaged': { name: 'Hư hỏng', color: '#ef4444' },
-      'lost': { name: 'Mất', color: '#6b7280' }
+    const conditionMapping: Record<'good' | 'fair' | 'damaged' | 'lost', { name: string; color: string }> = {
+      good: { name: 'Tốt', color: '#22c55e' },
+      fair: { name: 'Khá', color: '#3b82f6' },
+      damaged: { name: 'Hư hỏng', color: '#ef4444' },
+      lost: { name: 'Mất', color: '#6b7280' }
     };
 
+    const totalCount = Object.values(conditionCounts).reduce((s, v) => s + v, 0);
     const result = Object.entries(conditionCounts)
-      .map(([condition, count]) => ({
-        name: conditionMapping[condition]?.name || condition,
-        value: count,
-        color: conditionMapping[condition]?.color || '#8b5cf6'
-      }))
+      .map(([condition, count]) => {
+        const key = condition as 'good' | 'fair' | 'damaged' | 'lost';
+        return {
+          name: conditionMapping[key]?.name || condition,
+          value: count,
+          color: conditionMapping[key]?.color || '#8b5cf6'
+        };
+      })
       .filter(item => item.value > 0)
       .sort((a, b) => b.value - a.value); // Sort by count descending
     
@@ -800,10 +786,11 @@ export function InventoryReports() {
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                         fontSize: '14px'
                       }}
-                      formatter={(value, name) => [
-                        `${value} cuốn (${((value / conditionData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)`,
-                        'Số lượng'
-                      ]}
+                      formatter={(value: any, name: any) => {
+                        const total = conditionData.reduce((sum, item) => sum + (item.value || 0), 0);
+                        const percent = total > 0 ? ((Number(value) / total) * 100).toFixed(1) : '0.0';
+                        return [`${value} cuốn (${percent}%)`, 'Số lượng'];
+                      }}
                       labelFormatter={(label) => `Tình trạng: ${label}`}
                     />
                     <Legend 
@@ -815,9 +802,12 @@ export function InventoryReports() {
                         fontSize: '14px',
                         fontWeight: '500'
                       }}
-                      formatter={(value, entry) => (
-                        `${value}: ${entry.payload.value} cuốn (${((entry.payload.value / conditionData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)`
-                      )}
+                      formatter={(value, entry) => {
+                        const payloadVal = entry?.payload?.value ?? 0;
+                        const total = conditionData.reduce((sum, item) => sum + (item.value || 0), 0);
+                        const percent = total > 0 ? ((payloadVal / total) * 100).toFixed(1) : '0.0';
+                        return `${value}: ${payloadVal} cuốn (${percent}%)`;
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -864,16 +854,17 @@ export function InventoryReports() {
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                         fontSize: '14px'
                       }}
-                      formatter={(value, name, props) => [
-                        `${value} cuốn (${((value / conditionData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)`,
-                        'Số lượng'
-                      ]}
+                      formatter={(value: any, name: any, props: any) => {
+                        const total = conditionData.reduce((sum, item) => sum + (item.value || 0), 0);
+                        const percent = total > 0 ? ((Number(value) / total) * 100).toFixed(1) : '0.0';
+                        return [`${value} cuốn (${percent}%)`, 'Số lượng'];
+                      }}
                       labelFormatter={(label) => `Tình trạng: ${label}`}
                     />
                     <Bar 
                       dataKey="value" 
                       radius={[6, 6, 0, 0]}
-                      fill={(entry) => entry.color || '#8884d8'}
+                      fill="#8884d8"
                     >
                       {conditionData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />

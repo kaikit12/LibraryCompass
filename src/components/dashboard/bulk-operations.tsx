@@ -138,7 +138,7 @@ export function BulkOperations() {
       book.quantity,
       book.available,
       book.condition || 'good',
-      book.createdAt ? new Date(book.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : ''
+      book.createdAt ? new Date((book.createdAt as any)?.seconds * 1000).toLocaleDateString('vi-VN') : ''
     ]);
 
     const csvContent = [

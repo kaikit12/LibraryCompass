@@ -3,8 +3,8 @@ import { useState, useEffect } from 'react';
 import { Book } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookCopy, Users, Library, AlertTriangle, DollarSign, BookUp, BookDown, CalendarClock } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import { Progress } from '@/components/ui/progress';
 import { isToday, isPast, isWithinInterval, startOfWeek, endOfWeek } from 'date-fns';
 
@@ -20,10 +20,10 @@ export default function StatsCards() {
 
   useEffect(() => {
     // This subscription updates total books and copies
-    const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
+    const unsubscribeBooks = safeOnSnapshot(collection(db, "books"), (snapshot: any) => {
        let copies = 0;
        let borrowed = 0;
-       snapshot.forEach(doc => {
+       snapshot.forEach((doc: any) => {
          const book = doc.data() as Book;
          copies += book.quantity || 0;
          borrowed += (book.quantity || 0) - (book.available || 0);
@@ -33,9 +33,9 @@ export default function StatsCards() {
     });
 
     // This subscription updates total readers
-    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
+    const unsubscribeReaders = safeOnSnapshot(collection(db, "users"), (snapshot: any) => {
       let readerCount = 0;
-      snapshot.forEach(doc => {
+      snapshot.forEach((doc: any) => {
         const userData = doc.data();
         if (userData.role === 'reader') {
           readerCount++;
@@ -46,13 +46,13 @@ export default function StatsCards() {
     
     // This subscription handles all time-based stats by listening to the `borrowals` collection
     const borrowalsColRef = collection(db, "borrowals");
-    const unsubscribeBorrowals = onSnapshot(borrowalsColRef, (snapshot) => {
+    const unsubscribeBorrowals = safeOnSnapshot(borrowalsColRef, (snapshot: any) => {
         let borrowedTodayCount = 0;
         let returnedTodayCount = 0;
         let dueTodayCount = 0;
         let overdueCountValue = 0;
         
-        snapshot.forEach(doc => {
+        snapshot.forEach((doc: any) => {
             const data = doc.data();
             const borrowedAt = data.borrowedAt?.toDate();
             const returnedAt = data.returnedAt?.toDate();
@@ -82,13 +82,13 @@ export default function StatsCards() {
     
     // This subscription calculates late fee revenue for THIS WEEK from the `transactions` collection
     const transactionsColRef = query(collection(db, "transactions"), where("type", "==", "late_fee"));
-    const unsubscribeTransactions = onSnapshot(transactionsColRef, (snapshot) => {
+    const unsubscribeTransactions = safeOnSnapshot(transactionsColRef, (snapshot: any) => {
         const now = new Date();
         const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
         const weekEnd = endOfWeek(now, { weekStartsOn: 1 }); // Sunday
         
         let weeklyRevenue = 0;
-        snapshot.forEach(doc => {
+        snapshot.forEach((doc: any) => {
             const data = doc.data();
             const createdAt = data.createdAt?.toDate();
             

@@ -10,6 +10,16 @@ import { ThemeProvider } from '@/context/theme-context';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { AppHeader } from '@/components/layout/app-header';
 import { AppFooter } from '@/components/layout/app-footer';
+import { ConnectionStatus } from '@/components/ui/connection-status';
+import { FirebaseInitializer } from '@/components/firebase-initializer';
+import { FirebaseDebugPanel } from '@/components/debug/firebase-debug';
+import { AuthStatusIndicator } from '@/components/ui/auth-status';
+import { FirebaseErrorBoundary } from '@/components/error-boundary';
+import { GoogleRedirectHandler } from '@/components/auth/google-redirect-handler';
+
+// Initialize ultimate Firebase error suppressor
+import '@/lib/ultimate-suppressor';
+import '@/lib/global-error-handler';
 
 
 export const metadata: Metadata = {
@@ -30,22 +40,34 @@ export default function RootLayout({
         {/* Fonts are loaded via next/font */}
       </head>
       <body className={cn('font-body antialiased', inter.variable)}>
-        <ThemeProvider>
-          <AuthProvider>
-              <AuthGuard>
-                  <SidebarProvider>
-                      <AppSidebar />
-                      <SidebarInset>
-                        <AppHeader />
-                        <div className="flex-1 p-4 md:p-6 lg:p-8">
-                          {children}
-                        </div>
-                        <AppFooter />
-                      </SidebarInset>
-                  </SidebarProvider>
-              </AuthGuard>
-          </AuthProvider>
-        </ThemeProvider>
+        <FirebaseErrorBoundary>
+          <ThemeProvider>
+            <FirebaseInitializer />
+            <GoogleRedirectHandler />
+            <AuthProvider>
+                <AuthGuard>
+                    <SidebarProvider>
+                        <AppSidebar />
+                        <SidebarInset>
+                          <AppHeader />
+                          <div className="flex-1 p-4 md:p-6 lg:p-8">
+                            {/* Debug panels - hidden in production */}
+                            {process.env.NODE_ENV === 'development' && (
+                              <>
+                                {/* <FirebaseDebugPanel />
+                                <ConnectionStatus />
+                                <AuthStatusIndicator /> */}
+                              </>
+                            )}
+                            {children}
+                          </div>
+                          <AppFooter />
+                        </SidebarInset>
+                    </SidebarProvider>
+                </AuthGuard>
+            </AuthProvider>
+          </ThemeProvider>
+        </FirebaseErrorBoundary>
         <Toaster />
       </body>
     </html>

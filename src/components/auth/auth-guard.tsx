@@ -8,7 +8,7 @@ import { Skeleton } from "../ui/skeleton";
 
 const authRoutes = ["/login", "/register", "/forgot-password"];
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+export function AuthGuard({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string[] }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -34,6 +34,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       } else {
         router.push("/");
       }
+    }
+
+    // If a page declares requiredRole and the current user does not have one of those roles, redirect.
+    if (!loading && user && requiredRole && !requiredRole.includes(user.role)) {
+      router.push('/');
     }
   }, [user, loading, router, pathname, isAuthRoute]);
 

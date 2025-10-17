@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Bell, CheckCheck, Trash2 } from 'lucide-react';
@@ -29,10 +29,10 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
         const notificationsRef = collection(db, 'users', userId, 'notifications');
         const q = query(notificationsRef, orderBy('createdAt', 'desc'));
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = safeOnSnapshot(q, (snapshot: any) => {
             const fetchedNotifications: Notification[] = [];
             let count = 0;
-            snapshot.forEach((doc) => {
+            snapshot.forEach((doc: any) => {
                 const data = doc.data();
                 if (!data.isRead) {
                     count++;

@@ -10,8 +10,8 @@ import { Loader2, Calendar, Clock, XCircle } from 'lucide-react';
 import { format, differenceInHours } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
 
 export function MyAppointments() {
   const { user } = useAuth();
@@ -32,9 +32,9 @@ export function MyAppointments() {
       where('userId', '==', user.id)
     );
 
-    const unsubscribe = onSnapshot(appointmentsQuery, (snapshot) => {
+    const unsubscribe = safeOnSnapshot(appointmentsQuery, (snapshot: any) => {
       try {
-        const appointmentsList = snapshot.docs.map(doc => {
+        const appointmentsList = snapshot.docs.map((doc: any) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -46,7 +46,7 @@ export function MyAppointments() {
         });
 
         // Sort by pickupTime asc (soonest first)
-        appointmentsList.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
+        appointmentsList.sort((a: any, b: any) => a.pickupTime.getTime() - b.pickupTime.getTime());
         
         setAppointments(appointmentsList);
         setLoading(false);

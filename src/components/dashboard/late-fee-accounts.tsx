@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { DollarSign, CheckCircle2, Loader2, Search } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
+import { collection, doc, updateDoc } from 'firebase/firestore';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,10 +41,10 @@ export function LateFeeAccounts() {
   useEffect(() => {
     const usersQuery = collection(db, 'users');
 
-    const unsubscribe = onSnapshot(usersQuery, (snapshot) => {
+    const unsubscribe = safeOnSnapshot(usersQuery, (snapshot: any) => {
       const accountsWithFees: LateFeeAccount[] = [];
 
-      snapshot.forEach((doc) => {
+      snapshot.forEach((doc: any) => {
         const data = doc.data() as Reader;
         
         // Chỉ lấy tài khoản có nợ phí (lateFees > 0)

@@ -19,7 +19,6 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Download, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import * as XLSX from 'xlsx';
 
 interface RevenueEntry {
   transactionId: string;
@@ -183,7 +182,7 @@ export default function RevenueReportPage() {
 
     switch (exportFormat) {
       case 'excel':
-        exportToExcel(filteredEntries, totalExport);
+        exportToCSV(filteredEntries, totalExport);
         break;
       case 'csv':
         exportToCSV(filteredEntries, totalExport);
@@ -203,12 +202,9 @@ export default function RevenueReportPage() {
     }
   };
 
-  const exportToExcel = (entries: RevenueEntry[], total: number) => {
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    
-    // Prepare data for Excel
-    const excelData = [
+  const exportToCSV = (entries: RevenueEntry[], total: number) => {
+    // Prepare CSV data
+    const csvData = [
       ['BÁO CÁO DOANH THU TIỀN PHẠT'],
       [`Từ ngày: ${format(startDate!, 'dd/MM/yyyy', { locale: vi })} - Đến ngày: ${format(endDate!, 'dd/MM/yyyy', { locale: vi })}`],
       [], // Empty row
@@ -223,51 +219,28 @@ export default function RevenueReportPage() {
       ['', '', 'TỔNG CỘNG:', formatCurrency(total)]
     ];
 
-    // Create worksheet from data
-    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    // Convert to CSV string
+    const csvContent = csvData
+      .map(row => row.map(cell => `"${cell || ''}"`).join(','))
+      .join('\n');
 
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 40 }, // Tiêu đề sách
-      { wch: 25 }, // Bạn đọc
-      { wch: 20 }, // Ngày
-      { wch: 15 }  // Số tiền
-    ];
+    // Add BOM for UTF-8 to ensure proper Vietnamese character display
+    const BOM = '\uFEFF';
+    const csvWithBOM = BOM + csvContent;
 
-    // Merge cells for title
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // Merge title row
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }  // Merge date range row
-    ];
-
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Báo cáo doanh thu');
-
-    // Generate file and download
-    XLSX.writeFile(wb, `bao-cao-doanh-thu-${format(startDate!, 'dd-MM-yyyy')}-${format(endDate!, 'dd-MM-yyyy')}.xlsx`);
-
-    toast({
-      title: '✅ Xuất file thành công',
-      description: `Đã xuất ${entries.length} giao dịch sang Excel (.xlsx).`
-    });
-    setIsExportOpen(false);
-  };
-
-  const exportToCSV = (entries: RevenueEntry[], total: number) => {
-    let csvContent = '\uFEFF';
-    csvContent += 'Tiêu đề sách,Bạn đọc,Ngày,Số tiền\n';
-    
-    entries.forEach(entry => {
-      csvContent += `"${entry.bookTitle}","${entry.userName}","${entry.date}",${entry.amount}\n`;
-    });
-    
-    csvContent += `\nTổng cộng,,,${total}\n`;
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Create blob and download
+    const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `bao-cao-doanh-thu-${format(startDate!, 'dd-MM-yyyy')}-${format(endDate!, 'dd-MM-yyyy')}.csv`;
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bao-cao-doanh-thu-${format(startDate!, 'dd-MM-yyyy')}-${format(endDate!, 'dd-MM-yyyy')}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
     toast({
       title: '✅ Xuất file thành công',

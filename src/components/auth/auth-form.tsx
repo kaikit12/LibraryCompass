@@ -162,14 +162,25 @@ export function AuthForm({ mode }: AuthFormProps) {
         title: "✅ Đăng nhập thành công", 
         description: "Chào mừng bạn đăng nhập bằng Google!" 
       });
-    } catch (error: unknown) {
-      console.error(error);
-      const errorMessage = (error as { message?: string })?.message || "Đã xảy ra lỗi không xác định.";
-      toast({
-        variant: "destructive",
-        title: "❌ Đăng nhập Google thất bại",
-        description: errorMessage,
-      });
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      
+      // Check if it's a CSP or popup blocked error
+      if (error.code === 'auth/internal-error' && 
+          error.message?.includes('Content Security Policy')) {
+        toast({
+          variant: "destructive", 
+          title: "❌ Popup bị chặn",
+          description: "Trình duyệt chặn popup Google. Vui lòng thử phương pháp khác trong phần Debug.",
+        });
+      } else {
+        const errorMessage = error.message || "Đã xảy ra lỗi không xác định.";
+        toast({
+          variant: "destructive",
+          title: "❌ Đăng nhập Google thất bại",
+          description: errorMessage,
+        });
+      }
     } finally {
       setIsGoogleLoading(false);
     }

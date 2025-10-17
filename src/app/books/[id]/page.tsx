@@ -3,9 +3,10 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Book, Reader } from "@/lib/types";
+import { Book, Reader, FirebaseDocumentSnapshot } from "@/lib/types";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, Unsubscribe } from "firebase/firestore";
+import { doc, collection, Unsubscribe, DocumentSnapshot } from "firebase/firestore";
+import { safeOnSnapshot } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,12 +37,16 @@ export default function BookDetailPage() {
     if (!bookId) return;
     setLoading(true);
     const bookRef = doc(db, "books", bookId);
-    const unsubscribeBook = onSnapshot(bookRef, (doc) => {
-      if (doc.exists()) {
-        setBook({ id: doc.id, ...doc.data() } as Book);
+    const unsubscribeBook = safeOnSnapshot(bookRef, (docSnapshot) => {
+      const snapshot = docSnapshot as DocumentSnapshot;
+      if (snapshot.exists()) {
+        setBook({ id: snapshot.id, ...snapshot.data() } as Book);
       } else {
         setBook(null);
       }
+      setLoading(false);
+    }, (err) => {
+      toast({ title: 'Lỗi tải sách', description: String(err) });
       setLoading(false);
     });
 
@@ -49,11 +54,14 @@ export default function BookDetailPage() {
 
     // Only fetch readers if a user is logged in
     if (currentUser) {
-        if (currentUser.role === 'admin' || currentUser.role === 'librarian') {
-            unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
-                const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
-                setReaders(liveReaders);
-            });
+    if (currentUser.role === 'admin' || currentUser.role === 'librarian') {
+      unsubscribeReaders = safeOnSnapshot(collection(db, "users"), (snapshot) => {
+        const querySnapshot = snapshot as any;
+        const liveReaders = (querySnapshot.docs || []).map((d: any) => ({ id: d.id, ...d.data() } as Reader));
+        setReaders(liveReaders);
+      }, (err) => {
+        toast({ title: 'Lỗi tải người dùng', description: String(err) });
+      });
         } else {
             // If the user is a reader, they don't need the full list.
             // We just create a list containing only them to pass to the borrow dialog.

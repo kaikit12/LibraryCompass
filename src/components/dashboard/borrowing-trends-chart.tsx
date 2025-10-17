@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { subDays, format, eachDayOfInterval } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 
 interface DailyActivity {
@@ -30,11 +30,11 @@ export function BorrowingTrendsChart() {
         }));
 
         const borrowalsRef = collection(db, 'borrowals');
-        const unsubscribe = onSnapshot(borrowalsRef, (snapshot) => {
+        const unsubscribe = safeOnSnapshot(borrowalsRef, (snapshot: any) => {
             setLoading(true);
             const processedData = [...initialData].map(d => ({ ...d })); // Deep copy
 
-            snapshot.forEach(doc => {
+            snapshot.forEach((doc: any) => {
                 const borrowal = doc.data();
                 const borrowedAt = borrowal.borrowedAt?.toDate();
                 const returnedAt = borrowal.returnedAt?.toDate();

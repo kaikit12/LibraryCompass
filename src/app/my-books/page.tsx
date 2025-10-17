@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
+import { collection, query, where, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { Book, Reader } from '@/lib/types';
 import { groqChat } from '@/app/actions/groq-chat';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -50,8 +50,8 @@ export default function MyBooksPage() {
     useEffect(() => {
         if (!db) return;
         const booksQuery = collection(db, 'books');
-        const unsubscribe = onSnapshot(booksQuery, (snapshot) => {
-            const books = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+        const unsubscribe = safeOnSnapshot(booksQuery, (snapshot: any) => {
+            const books = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Book));
             setAllBooks(books);
         });
         return () => unsubscribe();
@@ -62,8 +62,8 @@ export default function MyBooksPage() {
         if (!user || !db) return;
         setIsLoading(true);
         const borrowalsQuery = query(collection(db, 'borrowals'), where('userId', '==', user.id), where('status', '==', 'borrowed'));
-        const unsubscribe = onSnapshot(borrowalsQuery, (snapshot) => {
-            const borrowals = snapshot.docs.map(d => ({
+        const unsubscribe = safeOnSnapshot(borrowalsQuery, (snapshot: any) => {
+            const borrowals = snapshot.docs.map((d: any) => ({
                 id: d.id,
                 bookId: d.data().bookId,
                 userId: d.data().userId,
@@ -107,9 +107,9 @@ export default function MyBooksPage() {
     useEffect(() => {
         if (!user || !db) return;
         const qHistory = query(collection(db, 'borrowals'), where('userId', '==', user.id), where('status', '==', 'returned'));
-        const unsub = onSnapshot(qHistory, async (snapshot) => {
+        const unsub = safeOnSnapshot(qHistory, async (snapshot: any) => {
             const booksMap = new Map(allBooks.map(b => [b.id, b]));
-            const items = await Promise.all(snapshot.docs.map(async d => {
+            const items = await Promise.all(snapshot.docs.map(async (d: any) => {
                 const data = d.data();
                 let book = booksMap.get(data.bookId);
                 if (!book) {

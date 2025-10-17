@@ -18,8 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MoreHorizontal, PlusCircle, Search, QrCode, Sparkles, Loader2, LayoutGrid, Table as TableIcon, Scan, X, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc, deleteDoc, onSnapshot, query, where, getDocs } from "firebase/firestore";
+import { db, safeOnSnapshot } from "@/lib/firebase";
+import { collection, addDoc, updateDoc, doc, deleteDoc, query, where, getDocs, getDoc, setDoc } from "firebase/firestore";
 import { BorrowDialog } from "./borrow-dialog";
 import { QRCodeDialog } from "./qr-code-dialog";
 import { useAuth } from "@/context/auth-context";
@@ -72,8 +72,8 @@ export function BookActions() {
 
   
   useEffect(() => {
-    const unsubscribeBooks = onSnapshot(collection(db, "books"), (snapshot) => {
-      const liveBooks = snapshot.docs.map(doc => {
+    const unsubscribeBooks = safeOnSnapshot(collection(db, "books"), (snapshot: any) => {
+      const liveBooks = snapshot.docs.map((doc: any) => {
           const data = doc.data();
           return { 
               id: doc.id, 
@@ -83,15 +83,15 @@ export function BookActions() {
       setBooks(liveBooks);
     });
     
-    const unsubscribeReaders = onSnapshot(collection(db, "users"), (snapshot) => {
-        const liveReaders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reader));
+    const unsubscribeReaders = safeOnSnapshot(collection(db, "users"), (snapshot: any) => {
+        const liveReaders = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Reader));
         setReaders(liveReaders);
     });
 
     // Load custom genres
-    const unsubscribeGenres = onSnapshot(collection(db, "customGenres"), (snapshot) => {
-      const loadedGenres = snapshot.docs.map(doc => doc.data().name as string);
-      setCustomGenres([...new Set(loadedGenres)]); // Remove duplicates
+    const unsubscribeGenres = safeOnSnapshot(collection(db, "customGenres"), (snapshot: any) => {
+      const loadedGenres = snapshot.docs.map((doc: any) => doc.data().name as string);
+      setCustomGenres([...new Set(loadedGenres)] as string[]); // Remove duplicates
     });
 
     return () => {
@@ -221,11 +221,22 @@ export function BookActions() {
   }
 
   const handleOpenEdit = (book: Book) => {
-    setEditingBook(book);
+    // Ensure all required fields have default values
+    const bookWithDefaults = {
+      ...book,
+      condition: book.condition || 'good',
+      quantity: book.quantity !== undefined ? book.quantity : 1,
+      available: book.available !== undefined ? book.available : (book.quantity || 1),
+      lateFeePerDay: book.lateFeePerDay !== undefined ? book.lateFeePerDay : 1,
+      genres: book.genres && book.genres.length > 0 ? book.genres : (book.genre ? [book.genre] : [])
+    };
+    
+    setEditingBook(bookWithDefaults);
+    
     // Check if genre is a custom one (not in predefined list)
     if (!genres.includes(book.genre) && book.genre !== 'Khác') {
       setCustomGenre(book.genre);
-      setEditingBook({...book, genre: 'Khác'});
+      setEditingBook({...bookWithDefaults, genre: 'Khác'});
     } else {
       setCustomGenre("");
     }
@@ -248,11 +259,21 @@ export function BookActions() {
       for (const customG of customGenresArray) {
         if (customG && !genres.includes(customG)) {
           try {
-            await addDoc(collection(db, 'customGenres'), {
-              name: customG,
-              createdAt: new Date(),
-              createdBy: user?.uid || 'unknown'
-            });
+            // Check if genre already exists
+            const genresQuery = query(
+              collection(db, 'customGenres'), 
+              where('name', '==', customG)
+            );
+            const existingGenres = await getDocs(genresQuery);
+            
+            // Only add if doesn't exist
+            if (existingGenres.empty) {
+              await addDoc(collection(db, 'customGenres'), {
+                name: customG,
+                createdAt: new Date(),
+                createdBy: user?.uid || 'unknown'
+              });
+            }
           } catch (error) {
             console.error('Error saving custom genre:', error);
           }
@@ -483,14 +504,42 @@ export function BookActions() {
     setIsLoadingISBN(true);
     try {
       const booksRef = collection(db, 'books');
-      const q = query(booksRef, where('libraryId', '==', scannedId));
-      const snapshot = await getDocs(q);
+      
+      // Try multiple fields: libraryId, ISBN, or book ID
+      let snapshot = await getDocs(query(booksRef, where('libraryId', '==', scannedId)));
+      
+      if (snapshot.empty) {
+        // Try ISBN if libraryId not found
+        snapshot = await getDocs(query(booksRef, where('isbn', '==', scannedId)));
+      }
+      
+      if (snapshot.empty) {
+        // Try as direct book ID
+        try {
+          const bookDoc = await getDoc(doc(db, 'books', scannedId));
+          if (bookDoc.exists()) {
+            const book = { id: bookDoc.id, ...bookDoc.data() } as Book;
+            setFilters(prev => ({ ...prev, searchTerm: book.libraryId || book.title }));
+            toast({
+              title: '✅ Tìm thấy sách',
+              description: `"${book.title}" - ${book.author}`,
+            });
+            setTimeout(() => {
+              const element = document.getElementById(`book-${book.id}`);
+              if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+            return;
+          }
+        } catch (e) {
+          // Continue to not found message
+        }
+      }
 
       if (snapshot.empty) {
         toast({
           variant: 'destructive',
           title: '❌ Không tìm thấy',
-          description: `Không tìm thấy sách với mã thư viện: ${scannedId}`,
+          description: `Không tìm thấy sách với mã: ${scannedId}. Hãy thử quét lại hoặc nhập thủ công.`,
         });
         return;
       }
@@ -525,21 +574,30 @@ export function BookActions() {
   };
 
   const generateNextLibraryId = async () => {
-    // Strategy 1: Use Firestore counter for guaranteed sequential IDs
-    // Strategy 2: Fallback to timestamp + random if counter fails
-    
+    // Improved strategy with proper Firestore document reference
     try {
-      // Try to use Firestore counter first
+      // Use a fixed document reference (not a query!)
       const counterRef = doc(db, 'counters', 'libraryId');
-      const counterSnap = await getDocs(query(collection(db, 'counters'), where('__name__', '==', 'libraryId')));
+      const counterSnap = await getDoc(counterRef);
       
-      if (counterSnap.empty) {
-        // Initialize counter if doesn't exist
-        const startValue = books.length > 0 ? books.length + 1 : 1;
-        await addDoc(collection(db, 'counters'), {
+      if (!counterSnap.exists()) {
+        // Initialize counter: find highest existing libraryId number
+        let maxNumber = 0;
+        books.forEach(book => {
+          if (book.libraryId && book.libraryId.startsWith('LIB-')) {
+            const num = parseInt(book.libraryId.replace('LIB-', ''), 10);
+            if (!isNaN(num) && num > maxNumber) {
+              maxNumber = num;
+            }
+          }
+        });
+        
+        const startValue = maxNumber + 1;
+        await setDoc(counterRef, {
           value: startValue,
           lastUpdated: new Date()
         });
+        
         const sequentialId = `LIB-${String(startValue).padStart(6, '0')}`;
         setEditingBook({...editingBook, libraryId: sequentialId});
         toast({ 
@@ -550,8 +608,11 @@ export function BookActions() {
       }
       
       // Use Firestore increment (atomic operation - prevents race condition)
-      const newValue = (counterSnap.docs[0].data().value || 0) + 1;
-      await updateDoc(doc(db, 'counters', counterSnap.docs[0].id), {
+      const currentValue = counterSnap.data().value || 0;
+      const newValue = currentValue + 1;
+      
+      // Use atomic increment to avoid race conditions
+      await updateDoc(counterRef, {
         value: newValue,
         lastUpdated: new Date()
       });
@@ -566,7 +627,7 @@ export function BookActions() {
     } catch (error) {
       console.error('Error using counter, falling back to timestamp method:', error);
       
-      // Fallback: Use timestamp + random
+      // Fallback: Use timestamp + random (only if counter completely fails)
       const now = new Date();
       const datePart = [
         now.getFullYear(),
@@ -590,13 +651,13 @@ export function BookActions() {
         const uniqueId = `${datePart}-${randomPart}${extraRandom}`;
         setEditingBook({...editingBook, libraryId: uniqueId});
         toast({ 
-          title: '✅ Mã tự động', 
+          title: '✅ Mã tự động (Fallback)', 
           description: `Đã tạo mã thư viện: ${uniqueId}` 
         });
       } else {
         setEditingBook({...editingBook, libraryId: libraryId});
         toast({ 
-          title: '✅ Mã tự động', 
+          title: '✅ Mã tự động (Fallback)', 
           description: `Đã tạo mã thư viện: ${libraryId}` 
         });
       }

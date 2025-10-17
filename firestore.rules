@@ -1,87 +1,142 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read and write their own data
+
+    // ============ Helper Functions ============
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdminOrLibrarian() {
+      return isSignedIn() &&
+        request.auth.token != null &&
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'librarian');
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ============ Users Collection ============
+    // Allow all authenticated users to read all users (needed for dropdowns, stats, etc)
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (isOwner(userId) || isAdminOrLibrarian());
+      allow delete: if isAdminOrLibrarian();
+      
+      // Sub-collection: notifications
+      match /notifications/{notificationId} {
+        allow read: if isSignedIn() && isOwner(userId);
+        allow write: if isSignedIn() && (isOwner(userId) || isAdminOrLibrarian());
+      }
     }
-    
-    // Allow authenticated users to read and write books
+
+    // ============ Books Collection ============
+    // Public read; writes only by admin/librarian
     match /books/{bookId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        (request.auth.token.role == 'admin' || request.auth.token.role == 'librarian');
+      allow read: if true; // Public - change to isSignedIn() if auth-only
+      allow create: if isAdminOrLibrarian();
+      allow update: if isAdminOrLibrarian();
+      allow delete: if isAdminOrLibrarian();
     }
-    
-    // Allow authenticated users to read and write borrow records
+
+    // ============ Borrows Collection ============
+    // Flexible for authenticated users
     match /borrows/{borrowId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        (request.auth.token.role == 'admin' || request.auth.token.role == 'librarian' || 
-         resource.data.userId == request.auth.uid);
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdminOrLibrarian();
     }
-    
-    // Allow authenticated users to read and write reservations
-    match /reservations/{reservationId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to read and write appointments
-    match /appointments/{appointmentId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to read and write reviews
-    match /reviews/{reviewId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to read and write renewal requests
-    match /renewalRequests/{requestId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to read and write renewals
-    match /renewals/{renewalId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to read and write borrowals  
+
+    // ============ Borrowals Collection ============
+    // Main borrowing records - flexible for authenticated users
     match /borrowals/{borrowalId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdminOrLibrarian();
     }
-    
-    // Allow authenticated users to read and write wishlist
+
+    // ============ Reservations Collection ============
+    match /reservations/{reservationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // ============ Appointments Collection ============
+    match /appointments/{appointmentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // ============ Reviews Collection ============
+    // Anyone signed in can create; owner can edit; admin can moderate
+    match /reviews/{reviewId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if true; // Reviews are usually public
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdminOrLibrarian());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdminOrLibrarian());
+    }
+
+    // ============ Renewal Requests Collection ============
+    match /renewalRequests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // ============ Renewals Collection ============
+    match /renewals/{renewalId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // ============ Wishlist Collection ============
     match /wishlist/{wishlistId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
-    
-    // Allow authenticated users to read and write notifications
-    match /notifications/{notificationId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    
-    // Allow admin/librarians to read and write settings
+
+    // ============ Settings Collection ============
+    // Admin/librarian only
     match /settings/{settingId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        (request.auth.token.role == 'admin' || request.auth.token.role == 'librarian');
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isAdminOrLibrarian();
     }
-    
-    // Temporary rule for development - REMOVE IN PRODUCTION
-    // Allow all authenticated users to read all documents
+
+    // ============ Custom Genres Collection ============
+    // Admin/librarian can write; all authenticated users can read
+    match /customGenres/{genreId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isAdminOrLibrarian();
+    }
+
+    // ============ Transactions Collection ============
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isAdminOrLibrarian();
+      allow delete: if isAdminOrLibrarian();
+    }
+
+    // ============ Development Fallback ============
+    // Catch-all for any collection not explicitly defined above
+    // IMPORTANT: This allows all authenticated users to read/write any document
+    // Remove or tighten this rule before production deployment
     match /{document=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
   }
 }

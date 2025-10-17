@@ -12,8 +12,8 @@ import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import Image from 'next/image';
 import Link from 'next/link';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db, safeOnSnapshot } from '@/lib/firebase';
 import {
   Select,
   SelectContent,
@@ -54,9 +54,9 @@ export function MyWishlist() {
       where('userId', '==', user.id)
     );
 
-    const unsubscribe = onSnapshot(wishlistQuery, (snapshot) => {
+    const unsubscribe = safeOnSnapshot(wishlistQuery, (snapshot: any) => {
       try {
-        const wishlistData = snapshot.docs.map(doc => {
+        const wishlistData = snapshot.docs.map((doc: any) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -66,7 +66,7 @@ export function MyWishlist() {
         });
 
         // Sort by addedAt desc (newest first)
-        wishlistData.sort((a, b) => b.addedAt.getTime() - a.addedAt.getTime());
+        wishlistData.sort((a: any, b: any) => b.addedAt.getTime() - a.addedAt.getTime());
         
         setWishlist(wishlistData);
         setLoading(false);

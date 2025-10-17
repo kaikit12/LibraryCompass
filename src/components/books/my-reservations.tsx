@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Bookmark, Loader2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
+import { safeOnSnapshot } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
 import {
   AlertDialog,
@@ -45,20 +46,32 @@ export function MyReservations({ userId }: MyReservationsProps) {
       where('status', 'in', ['active', 'fulfilled'])
     );
 
-    const unsubscribe = onSnapshot(reservationsQuery, (snapshot) => {
+  const unsubscribe = safeOnSnapshot(reservationsQuery, (snapshot: any) => {
       try {
-        const reservationsList = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
+        const reservationsList = (snapshot.docs as any[]).map((doc: any) => {
+          const data = doc.data() as any;
+
+          const createdAt = data.createdAt?.toDate?.() || (data.createdAt ? new Date(data.createdAt) : new Date());
+          const fulfilledAt = data.fulfilledAt?.toDate?.() || (data.fulfilledAt ? new Date(data.fulfilledAt) : null);
+
+          const reservation: Reservation = {
             id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate?.() || new Date(),
-            fulfilledAt: data.fulfilledAt?.toDate?.() || null,
-          } as Reservation;
+            bookId: data.bookId || '',
+            userId: data.userId || '',
+            bookTitle: data.bookTitle || data.title || 'Không rõ',
+            userName: data.userName || data.user?.name || 'Người dùng',
+            status: data.status || 'active',
+            createdAt,
+            position: typeof data.position === 'number' ? data.position : undefined,
+            notifiedAt: data.notifiedAt?.toDate?.() || (data.notifiedAt ? new Date(data.notifiedAt) : undefined),
+            expiresAt: data.expiresAt?.toDate?.() || (data.expiresAt ? new Date(data.expiresAt) : undefined),
+          };
+
+          return reservation;
         });
 
         // Sort by createdAt desc (newest first)
-        reservationsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  reservationsList.sort((a: Reservation, b: Reservation) => b.createdAt.getTime() - a.createdAt.getTime());
         
         setReservations(reservationsList);
         setIsLoading(false);
@@ -78,7 +91,7 @@ export function MyReservations({ userId }: MyReservationsProps) {
       });
     });
 
-    return () => unsubscribe();
+    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, [userId, toast]);
 
   const handleCancelReservation = async (reservationId: string) => {
