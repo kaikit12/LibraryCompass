@@ -35,7 +35,7 @@ import {
   Upload,
   RefreshCw
 } from 'lucide-react';
-import { Book } from '@/lib/types';
+import { Book, BookConditionDetail } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { safeOnSnapshot } from '@/lib/firebase';
@@ -147,7 +147,7 @@ export function InventoryReports() {
         // Use detailed condition data - each conditionDetail represents one copy
         console.log(`📋 Using conditionDetails for "${book.title}":`, book.conditionDetails);
         totalCopies += book.conditionDetails.length;
-        book.conditionDetails.forEach((detail, detailIndex) => {
+        book.conditionDetails.forEach((detail: BookConditionDetail, detailIndex: number) => {
           console.log(`  📄 Copy ${detailIndex + 1}: condition = ${detail.condition}`);
           switch (detail.condition) {
             case 'good':
@@ -231,7 +231,7 @@ export function InventoryReports() {
       // Use detailed condition data if available, otherwise fall back to general condition
       if (book.conditionDetails && book.conditionDetails.length > 0) {
         console.log(`📋 Using conditionDetails for ${book.title}:`, book.conditionDetails);
-        book.conditionDetails.forEach((detail, detailIndex) => {
+        book.conditionDetails.forEach((detail: BookConditionDetail, detailIndex: number) => {
           console.log(`  📄 Copy ${detailIndex + 1}: ${detail.condition}`);
           acc[detail.condition] = (acc[detail.condition] || 0) + 1;
         });
@@ -286,7 +286,7 @@ export function InventoryReports() {
     
     books.forEach(book => {
       if (book.conditionDetails && book.conditionDetails.length > 0) {
-        book.conditionDetails.forEach(detail => {
+        book.conditionDetails.forEach((detail: BookConditionDetail) => {
           if (detail.condition === 'damaged') {
             damagedBooks.push({ book: book.title, detail, timestamp: detail.updatedAt });
           }
@@ -417,7 +417,7 @@ export function InventoryReports() {
         data.total += book.conditionDetails.length;
         data.value += book.conditionDetails.length * 100000; // Estimated value per copy
         
-        book.conditionDetails.forEach(detail => {
+        book.conditionDetails.forEach((detail: BookConditionDetail) => {
           switch (detail.condition) {
             case 'good':
             case 'fair': // Group fair with good for genre analysis

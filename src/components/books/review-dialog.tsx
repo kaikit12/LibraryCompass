@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { Review } from '@/lib/types';
+import { Review, toDate, getTimestamp } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -306,7 +306,7 @@ export function ReviewDialog({
             ) : (
               <div className="space-y-4">
                 {reviews
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
                   .map((review) => (
                     <div
                       key={review.id}
@@ -316,7 +316,7 @@ export function ReviewDialog({
                         <div>
                           <p className="font-medium">{review.userName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(review.createdAt), 'dd/MM/yyyy HH:mm', { locale: vi })}
+                            {format(toDate(review.createdAt) || new Date(), 'dd/MM/yyyy HH:mm', { locale: vi })}
                             {review.updatedAt && ' (đã chỉnh sửa)'}
                           </p>
                         </div>

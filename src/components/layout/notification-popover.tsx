@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
-import { Notification } from '@/lib/types';
+import { Notification, toDate } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -101,7 +101,7 @@ export function NotificationPopover({ userId }: NotificationPopoverProps) {
                                    <div className={cn("flex-grow", notif.isRead && "ml-4")}>
                                         <p className="text-sm">{notif.message}</p>
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            {notif.createdAt ? formatDistanceToNow(notif.createdAt, { addSuffix: true }) : 'vừa xong'}
+                                            {notif.createdAt ? formatDistanceToNow(toDate(notif.createdAt) || new Date(), { addSuffix: true }) : 'vừa xong'}
                                         </p>
                                    </div>
                                </div>
