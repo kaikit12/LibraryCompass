@@ -7,8 +7,9 @@ import { NextResponse } from 'next/server';
 // Force load environment variables
 if (typeof process !== 'undefined' && !process.env.FIREBASE_ADMIN_CLIENT_EMAIL) {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('dotenv').config();
-  } catch (e) {
+  } catch {
     // dotenv might not be available, that's ok
   }
 }
@@ -138,8 +139,8 @@ export async function DELETE(request: Request) {
     // Delete from Firebase Auth (best-effort)
     try {
       await admin.auth().deleteUser(userId);
-    } catch (authErr: any) {
-      console.error('Failed to delete user from Auth:', authErr?.message || authErr);
+    } catch (authErr: unknown) {
+      console.error('Failed to delete user from Auth:', authErr instanceof Error ? authErr.message : authErr);
       // Do not fail the request; Firestore doc has been removed and we saved backup
     }
 
