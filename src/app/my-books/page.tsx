@@ -62,18 +62,27 @@ export default function MyBooksPage() {
         if (!user || !db) return;
         setIsLoading(true);
         const borrowalsQuery = query(collection(db, 'borrowals'), where('userId', '==', user.id), where('status', '==', 'borrowed'));
-        const unsubscribe = safeOnSnapshot(borrowalsQuery, (snapshot: any) => {
-            const borrowals = snapshot.docs.map((d: any) => ({
-                id: d.id,
-                bookId: d.data().bookId,
-                userId: d.data().userId,
-                dueDate: d.data().dueDate.toDate(),
-            } as Borrowal));
-            setActiveBorrowals(borrowals);
-            setIsLoading(false);
-        }, () => {
-            setIsLoading(false);
-        });
+        const unsubscribe = safeOnSnapshot(
+            borrowalsQuery,
+            (snapshot: any) => {
+                try {
+                    const borrowals = snapshot.docs.map((d: any) => ({
+                        id: d.id,
+                        bookId: d.data().bookId,
+                        userId: d.data().userId,
+                        dueDate: d.data().dueDate.toDate(),
+                    } as Borrowal));
+                    setActiveBorrowals(borrowals);
+                } catch (err) {
+                    // log error if needed
+                } finally {
+                    setIsLoading(false);
+                }
+            },
+            (error: any) => {
+                setIsLoading(false);
+            }
+        );
         return () => unsubscribe();
     }, [user]);
 
@@ -150,9 +159,16 @@ export default function MyBooksPage() {
             
             let historyTitles: string[] = [];
             if (historyIds.length > 0) {
-                const historyBooksQuery = query(collection(db, 'books'), where('__name__', 'in', historyIds));
-                const historyBooksSnapshot = await getDocs(historyBooksQuery);
-                historyTitles = historyBooksSnapshot.docs.map(doc => doc.data().title);
+                try {
+                    const historyBooksQuery = query(collection(db, 'books'), where('__name__', 'in', historyIds));
+                    const historyBooksSnapshot = await getDocs(historyBooksQuery);
+                    historyTitles = historyBooksSnapshot.docs.map(doc => doc.data().title);
+                } catch (err) {
+                    // Nếu lỗi permission hoặc getDocs thất bại, vẫn tiếp tục nhưng không có historyTitles
+                    setIsRecoLoading(false);
+                    setRecommendations([]);
+                    return;
+                }
             }
 
             const prompt = `Dựa trên lịch sử đọc sau: ${historyTitles.join(', ')}. HÃY TRẢ VỀ DUY NHẤT MỘT MẢNG JSON CÁC TIÊU ĐỀ SÁCH (array of strings) KHÔNG KÈM BẤT KỲ CHỮ NÀO KHÁC. Ví dụ: ["Sapiens: Lược sử loài người", "Nhà giả kim", "Cảm xúc nhân tạo"]. Không kèm mô tả, ký tự gạch đầu dòng hay chú thích.`;
@@ -160,7 +176,9 @@ export default function MyBooksPage() {
             try {
                 result = await groqChat({ prompt });
             } catch (err) {
-                throw new Error('Không thể kết nối AI, vui lòng thử lại sau.');
+                setIsRecoLoading(false);
+                setRecommendations([]);
+                return;
             }
 
             // Try to extract JSON array from the model response first
@@ -237,7 +255,6 @@ export default function MyBooksPage() {
 
         } catch (e: unknown) {
             setRecommendations([]);
-            // Có thể log lỗi nếu cần: console.error(e);
         } finally {
             setIsRecoLoading(false);
         }

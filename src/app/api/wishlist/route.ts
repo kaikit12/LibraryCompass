@@ -12,8 +12,8 @@ function initializeFirebaseAdmin() {
       const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
       const base64Key = process.env.FIREBASE_ADMIN_PRIVATE_KEY; // Đây là key đã mã hóa
 
-      if (!base64Key) {
-        throw new Error('FIREBASE_ADMIN_PRIVATE_KEY (Base64) is not set');
+      if (!projectId || !clientEmail || !base64Key) {
+        throw new Error('Missing Firebase Admin environment variables (PROJECT_ID, CLIENT_EMAIL, or Base64 KEY)');
       }
 
       // GIẢI MÃ key từ Base64 trở lại định dạng PEM ban đầu
