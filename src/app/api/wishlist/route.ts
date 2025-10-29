@@ -7,26 +7,31 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 function initializeFirebaseAdmin() {
   if (!getApps().length) {
     try {
-      let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
-      if (!privateKey) {
-        throw new Error('FIREBASE_ADMIN_PRIVATE_KEY environment variable is not set');
+      // Lấy các biến
+      const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
+      const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+      const base64Key = process.env.FIREBASE_ADMIN_PRIVATE_KEY; // Đây là key đã mã hóa
+
+      if (!base64Key) {
+        throw new Error('FIREBASE_ADMIN_PRIVATE_KEY (Base64) is not set');
       }
-      // 1. Xóa dấu ngoặc kép "..." ở đầu/cuối nếu có
-      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-        privateKey = privateKey.substring(1, privateKey.length - 1);
-      }
-      // 2. Thay thế các chuỗi ký tự "\\n" bằng ký tự xuống dòng thật "\n"
-      const formattedKey = privateKey.replace(/\\n/g, '\n');
+
+      // GIẢI MÃ key từ Base64 trở lại định dạng PEM ban đầu
+      const privateKey = Buffer.from(base64Key, 'base64').toString('utf8');
+
+      // Khởi tạo app
       initializeApp({
         credential: cert({
-          projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-          privateKey: formattedKey, // Dùng khóa đã được format
+          projectId: projectId,
+          clientEmail: clientEmail,
+          privateKey: privateKey, // Dùng key đã được giải mã
         }),
       });
-      console.log('Firebase Admin initialized successfully for wishlist API');
+
+      console.log('Firebase Admin initialized successfully (Base64 method)');
+
     } catch (error) {
-      console.error('Failed to initialize Firebase Admin:', error);
+      console.error('Failed to initialize Firebase Admin (Base64 method):', error);
       throw error;
     }
   }
