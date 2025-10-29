@@ -7,24 +7,23 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 function initializeFirebaseAdmin() {
   if (!getApps().length) {
     try {
-  let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+      let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
       if (!privateKey) {
-  throw new Error('FIREBASE_ADMIN_PRIVATE_KEY environment variable is not set');
+        throw new Error('FIREBASE_ADMIN_PRIVATE_KEY environment variable is not set');
       }
-      
-      // Handle both escaped and unescaped private keys
-      if (privateKey.includes('\\n')) {
-        privateKey = privateKey.replace(/\\n/g, '\n');
+      // 1. Xóa dấu ngoặc kép "..." ở đầu/cuối nếu có
+      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+        privateKey = privateKey.substring(1, privateKey.length - 1);
       }
-      
+      // 2. Thay thế các chuỗi ký tự "\\n" bằng ký tự xuống dòng thật "\n"
+      const formattedKey = privateKey.replace(/\\n/g, '\n');
       initializeApp({
         credential: cert({
           projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
           clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-          privateKey: privateKey,
+          privateKey: formattedKey, // Dùng khóa đã được format
         }),
       });
-      
       console.log('Firebase Admin initialized successfully for wishlist API');
     } catch (error) {
       console.error('Failed to initialize Firebase Admin:', error);
