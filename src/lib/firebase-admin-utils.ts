@@ -7,9 +7,9 @@ import { NextResponse } from 'next/server';
 export function initializeFirebaseAdmin() {
   if (!getApps().length) {
     try {
-      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
       if (!privateKey) {
-        throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+  throw new Error('FIREBASE_ADMIN_PRIVATE_KEY environment variable is not set');
       }
       
       // Handle both escaped and unescaped private keys
@@ -19,8 +19,8 @@ export function initializeFirebaseAdmin() {
       
       initializeApp({
         credential: cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
           privateKey: privateKey,
         }),
       });
