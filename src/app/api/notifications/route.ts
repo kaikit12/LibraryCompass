@@ -1,40 +1,67 @@
 
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, writeBatch, getDocs, doc } from 'firebase/firestore';
+import { 
+  initializeFirebaseAdmin, 
+  verifyAuthentication, 
+  isAdminOrLibrarian, 
+  getAdminDB 
+} from '@/lib/firebase-admin-utils';
 import { createNotification } from '@/lib/notifications';
 
 // Common handler for both POST and DELETE to reduce duplication
 async function handleRequest(request: Request) {
     try {
+        // 🚨 SECURITY FIX: Initialize Firebase Admin
+        initializeFirebaseAdmin();
+        const db = getAdminDB();
+        
+        // 🚨 SECURITY FIX: Verify authentication
+        const authResult = await verifyAuthentication(request);
+        if (authResult.error) {
+            return authResult.error;
+        }
+        const authenticatedUser = authResult.user!;
+        
         const { userId, action, message, type } = await request.json();
 
         if (!userId) {
             return NextResponse.json({ success: false, message: 'User ID is required.' }, { status: 400 });
         }
         
-        const notificationsRef = collection(db, 'users', userId, 'notifications');
+        // Verify user can only manage their own notifications (unless admin/librarian)
+        if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+            return NextResponse.json(
+                { error: 'Unauthorized access' },
+                { status: 403 }
+            );
+        }
 
         // Action: Create a specific notification for a user (e.g., overdue reminder)
         if (action === 'create-notification' && message && type) {
+            // Only admin/librarian can create notifications for others
+            if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+                return NextResponse.json(
+                    { error: 'Admin access required to create notifications for others' },
+                    { status: 403 }
+                );
+            }
             await createNotification(userId, { message, type });
             return NextResponse.json({ success: true, message: `Notification sent to user ${userId}.` });
         }
 
         // --- Actions on existing notifications ---
-        const querySnapshot = await getDocs(notificationsRef);
+        const notificationsSnapshot = await db.collection('users').doc(userId).collection('notifications').get();
 
-        if (querySnapshot.empty && (action === 'mark-all-read' || action === 'clear-all')) {
+        if (notificationsSnapshot.empty && (action === 'mark-all-read' || action === 'clear-all')) {
             return NextResponse.json({ success: true, message: 'No notifications to process.' });
         }
 
-        const batch = writeBatch(db);
+        const batch = db.batch();
 
         if (action === 'mark-all-read') {
-             querySnapshot.forEach((document) => {
-                const docRef = doc(db, 'users', userId, 'notifications', document.id);
+             notificationsSnapshot.forEach((document) => {
                 if (!document.data().isRead) {
-                    batch.update(docRef, { isRead: true });
+                    batch.update(document.ref, { isRead: true });
                 }
             });
             await batch.commit();
@@ -42,9 +69,8 @@ async function handleRequest(request: Request) {
         }
 
         if (action === 'clear-all') {
-            querySnapshot.forEach((document) => {
-                const docRef = doc(db, 'users', userId, 'notifications', document.id);
-                batch.delete(docRef);
+            notificationsSnapshot.forEach((document) => {
+                batch.delete(document.ref);
             });
             await batch.commit();
             return NextResponse.json({ success: true, message: 'All notifications cleared.' });

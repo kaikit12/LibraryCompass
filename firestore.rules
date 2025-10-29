@@ -18,9 +18,14 @@ service cloud.firestore {
     }
 
     // ============ Users Collection ============
-    // Allow all authenticated users to read all users (needed for dropdowns, stats, etc)
+    // Siết chặt quyền đọc để bảo vệ thông tin riêng tư
     match /users/{userId} {
-      allow read: if isSignedIn();
+      // Chỉ chủ sở hữu hoặc admin mới được xem chi tiết 1 user
+      allow get: if isSignedIn() && (isOwner(userId) || isAdminOrLibrarian());
+      
+      // Admin có thể list tất cả user (ví dụ: trang quản lý user)
+      allow list: if isAdminOrLibrarian();
+      
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn() && (isOwner(userId) || isAdminOrLibrarian());
       allow delete: if isAdminOrLibrarian();
@@ -42,37 +47,113 @@ service cloud.firestore {
     }
 
     // ============ Borrows Collection ============
-    // Flexible for authenticated users
     match /borrows/{borrowId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      // Cho phép đọc nếu là chủ sở hữu hoặc admin/librarian
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
+      
+      // Cho phép query nếu query theo userId của mình hoặc là admin/librarian
+        allow list: if isSignedIn() && (isAdminOrLibrarian() || 
+          request.query.userId == request.auth.uid);
+
+      // Cho phép tạo nếu userId trong document là của mình
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      
+      // Chỉ Admin/Librarian mới được cập nhật đơn mượn (để tránh tự đổi status thành 'returned')
+      allow update: if isAdminOrLibrarian();
+      
+      // Chỉ admin/librarian mới được xóa
       allow delete: if isAdminOrLibrarian();
     }
 
     // ============ Borrowals Collection ============
-    // Main borrowing records - flexible for authenticated users
     match /borrowals/{borrowalId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      // Cho phép đọc nếu là chủ sở hữu hoặc admin/librarian
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
+      
+      // Cho phép query nếu query theo userId của mình hoặc là admin/librarian
+        allow list: if isSignedIn() && (isAdminOrLibrarian() || 
+          request.query.userId == request.auth.uid);
+
+      // Cho phép tạo nếu userId trong document là của mình
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      
+      // Chỉ Admin/Librarian mới được cập nhật đơn mượn (để tránh tự đổi status thành 'returned')
+      allow update: if isAdminOrLibrarian();
+      
+      // Chỉ admin/librarian mới được xóa
       allow delete: if isAdminOrLibrarian();
     }
 
     // ============ Reservations Collection ============
     match /reservations/{reservationId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      // Cho phép đọc nếu là chủ sở hữu hoặc admin/librarian
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
+      
+      // Cho phép query nếu query theo userId của mình hoặc là admin/librarian
+        allow list: if isSignedIn() && (isAdminOrLibrarian() || 
+          request.query.userId == request.auth.uid);
+
+      // Cho phép tạo nếu userId trong document là của mình
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      
+      // QUY TẮC CẬP NHẬT CHI TIẾT
+      allow update: if isSignedIn() && 
+                      (
+                        // 1. THỦ THƯ: Có toàn quyền cập nhật
+                        isAdminOrLibrarian() 
+                        
+                        ||
+                        
+                        // 2. NGƯỜI ĐỌC: Chỉ được phép TỰ HỦY
+                        (
+                          isOwner(resource.data.userId) &&
+                          // Chỉ được sửa khi đơn đang 'pending'
+                          resource.data.status == 'pending' &&
+                          // Và chỉ được đổi thành 'cancelled'
+                          request.resource.data.status == 'cancelled' &&
+                          // Và chỉ được sửa trường status, còn lại phải giữ nguyên
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                        )
+                      );
+      
+      // Cho phép xóa nếu là chủ sở hữu hoặc admin/librarian
+      allow delete: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
     }
 
     // ============ Appointments Collection ============
     match /appointments/{appointmentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      // Cho phép đọc nếu là chủ sở hữu hoặc admin/librarian
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
+      
+      // Cho phép query nếu query theo userId của mình hoặc là admin/librarian
+        allow list: if isSignedIn() && (isAdminOrLibrarian() || 
+          request.query.userId == request.auth.uid);
+
+      // Cho phép tạo nếu userId trong document là của mình
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      
+      // QUY TẮC CẬP NHẬT CHI TIẾT cho appointments
+      allow update: if isSignedIn() && 
+                      (
+                        // 1. THỦ THƯ: Có toàn quyền cập nhật
+                        isAdminOrLibrarian() 
+                        
+                        ||
+                        
+                        // 2. NGƯỜI ĐỌC: Chỉ được phép TỰ HỦY
+                        (
+                          isOwner(resource.data.userId) &&
+                          // Chỉ được sửa khi lịch hẹn đang 'pending'
+                          resource.data.status == 'pending' &&
+                          // Và chỉ được đổi thành 'cancelled'
+                          request.resource.data.status == 'cancelled' &&
+                          // Và chỉ được sửa trường status, còn lại phải giữ nguyên
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                        )
+                      );
+      
+      // Cho phép xóa nếu là chủ sở hữu hoặc admin/librarian
+      allow delete: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
     }
 
     // ============ Reviews Collection ============
@@ -86,26 +167,70 @@ service cloud.firestore {
 
     // ============ Renewal Requests Collection ============
     match /renewalRequests/{requestId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      // Cho phép đọc nếu là chủ sở hữu hoặc admin/librarian
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
+      
+      // Cho phép query nếu query theo userId của mình hoặc là admin/librarian
+        allow list: if isSignedIn() && (isAdminOrLibrarian() || 
+          request.query.userId == request.auth.uid);
+
+      // Cho phép tạo nếu userId trong document là của mình
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      
+      // QUY TẮC CẬP NHẬT CHI TIẾT cho renewal requests
+      allow update: if isSignedIn() && 
+                      (
+                        // 1. THỦ THƯ: Có toàn quyền cập nhật
+                        isAdminOrLibrarian() 
+                        
+                        ||
+                        
+                        // 2. NGƯỜI ĐỌC: Chỉ được phép TỰ HỦY
+                        (
+                          isOwner(resource.data.userId) &&
+                          // Chỉ được sửa khi yêu cầu đang 'pending'
+                          resource.data.status == 'pending' &&
+                          // Và chỉ được đổi thành 'cancelled'
+                          request.resource.data.status == 'cancelled' &&
+                          // Và chỉ được sửa trường status, còn lại phải giữ nguyên
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                        )
+                      );
+      
+      // Cho phép xóa nếu là chủ sở hữu hoặc admin/librarian
+      allow delete: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
     }
 
     // ============ Renewals Collection ============
     match /renewals/{renewalId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      // Cho phép đọc nếu là chủ sở hữu hoặc admin/librarian
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
+      
+      // Cho phép query nếu query theo userId của mình hoặc là admin/librarian
+        allow list: if isSignedIn() && (isAdminOrLibrarian() || 
+          request.query.userId == request.auth.uid);
+
+      // Cho phép tạo nếu userId trong document là của mình
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      
+      // Cho phép cập nhật/xóa nếu là chủ sở hữu hoặc admin/librarian
+      allow update, delete: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
     }
 
     // ============ Wishlist Collection ============
     match /wishlist/{wishlistId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      // Cho phép đọc (get) nếu là chủ sở hữu
+      allow get: if isSignedIn() && isOwner(resource.data.userId);
+      
+      // Cho phép query (list) nếu chỉ query userId của chính mình
+        allow list: if isSignedIn() && 
+          request.query.userId == request.auth.uid;
+
+      // Cho phép tạo nếu userId trong document mới là của mình
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      
+      // Cho phép cập nhật, xóa nếu là chủ sở hữu (resource.data là data cũ)
+      allow update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     // ============ Settings Collection ============
@@ -124,19 +249,29 @@ service cloud.firestore {
 
     // ============ Transactions Collection ============
     match /transactions/{transactionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isAdminOrLibrarian();
-      allow delete: if isAdminOrLibrarian();
+      // Chỉ chủ sở hữu hoặc admin mới được đọc giao dịch
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdminOrLibrarian());
+      
+      // Cho phép query nếu query theo userId của mình hoặc là admin/librarian
+        allow list: if isSignedIn() && (isAdminOrLibrarian() || 
+          request.query.userId == request.auth.uid);
+      
+      // Chỉ admin/librarian mới được tạo giao dịch (để tránh tạo giao dịch giả)
+      allow create: if isAdminOrLibrarian();
+      
+      // Chỉ admin/librarian mới được cập nhật/xóa
+      allow update, delete: if isAdminOrLibrarian();
     }
 
-    // ============ Development Fallback ============
-    // Catch-all for any collection not explicitly defined above
-    // IMPORTANT: This allows all authenticated users to read/write any document
-    // Remove or tighten this rule before production deployment
-    match /{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    // ============ Notifications Collection (Root Level) ============
+    // API tạo notifications ở cấp độ gốc - chỉ client đọc/cập nhật
+    match /notifications/{notificationId} {
+      // Cho phép đọc/cập nhật nếu là chủ sở hữu
+      allow read, update: if isSignedIn() && isOwner(resource.data.userId);
+      
+      // Không cho phép client tạo hoặc xóa - chỉ API mới được làm
+      allow create, delete: if false; 
     }
+
   }
 }

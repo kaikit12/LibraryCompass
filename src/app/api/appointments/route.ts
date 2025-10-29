@@ -1,46 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import {
-  collection,
-  addDoc,
-  doc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  updateDoc,
-  serverTimestamp,
-  Timestamp,
-  increment,
-  arrayUnion,
-} from 'firebase/firestore';
+import { 
+  initializeFirebaseAdmin, 
+  verifyAuthentication, 
+  isAdminOrLibrarian, 
+  getAdminDB 
+} from '@/lib/firebase-admin-utils';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Appointment } from '@/lib/types';
 import { addDays, differenceInHours } from 'date-fns';
 
 // GET /api/appointments - Get appointments
 export async function GET(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
 
-    let q;
+    let appointmentsSnapshot;
     if (userId) {
-      q = query(
-        collection(db, 'appointments'),
-        where('userId', '==', userId)
-      );
+      // Verify user can only access their own appointments (unless admin/librarian)
+      if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+        return NextResponse.json(
+          { error: 'Unauthorized access' },
+          { status: 403 }
+        );
+      }
+      
+      appointmentsSnapshot = await db.collection('appointments')
+        .where('userId', '==', userId)
+        .get();
     } else {
-      q = collection(db, 'appointments');
+      // Get all appointments (admin view only)
+      if (!isAdminOrLibrarian(authenticatedUser)) {
+        return NextResponse.json(
+          { error: 'Admin access required' },
+          { status: 403 }
+        );
+      }
+      appointmentsSnapshot = await db.collection('appointments').get();
     }
 
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
+    if (appointmentsSnapshot.empty) {
       return NextResponse.json([]);
     }
     
-    let appointments = snapshot.docs.map((doc) => {
+    let appointments = appointmentsSnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -57,11 +72,11 @@ export async function GET(req: NextRequest) {
 
     // Filter by status if provided
     if (status) {
-      appointments = appointments.filter(a => a.status === status);
+      appointments = appointments.filter((a: any) => a.status === status);
     }
 
     // Sort by pickupTime asc (soonest first)
-    appointments = appointments.sort((a, b) => 
+    appointments = appointments.sort((a: any, b: any) => 
       a.pickupTime.getTime() - b.pickupTime.getTime()
     );
 
@@ -78,6 +93,17 @@ export async function GET(req: NextRequest) {
 // POST /api/appointments - Create a new appointment
 export async function POST(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const body = await req.json();
     const { bookId, userId, bookTitle, userName, userMemberId, pickupTime, agreedToTerms } = body;
 
@@ -85,6 +111,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields or terms not agreed' },
         { status: 400 }
+      );
+    }
+
+    // Verify user can only create appointments for themselves (unless admin/librarian)
+    if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
       );
     }
 
@@ -100,14 +134,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if book is available
-    const bookRef = doc(db, 'books', bookId);
-    const bookDoc = await getDoc(bookRef);
+    const bookDoc = await db.collection('books').doc(bookId).get();
     
-    if (!bookDoc.exists()) {
+    if (!bookDoc.exists) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 });
     }
 
-    const bookData = bookDoc.data();
+    const bookData = bookDoc.data()!;
     if (bookData.available <= 0) {
       return NextResponse.json(
         { error: 'Sách hiện không có sẵn. Vui lòng đặt chỗ trong hàng đợi.' },
@@ -116,13 +149,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already has a pending appointment for this book
-    const existingQuery = query(
-      collection(db, 'appointments'),
-      where('userId', '==', userId),
-      where('bookId', '==', bookId),
-      where('status', '==', 'pending')
-    );
-    const existingSnapshot = await getDocs(existingQuery);
+    const existingSnapshot = await db.collection('appointments')
+      .where('userId', '==', userId)
+      .where('bookId', '==', bookId)
+      .where('status', '==', 'pending')
+      .get();
     
     if (!existingSnapshot.empty) {
       return NextResponse.json(
@@ -141,27 +172,27 @@ export async function POST(req: NextRequest) {
       pickupTime: Timestamp.fromDate(pickupDate),
       agreedToTerms,
       status: 'pending',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       confirmedAt: null,
       confirmedBy: null,
       borrowalId: null,
       cancellationReason: null,
     };
 
-    const appointmentRef = await addDoc(collection(db, 'appointments'), appointmentData);
+    const appointmentRef = await db.collection('appointments').add(appointmentData);
 
     // Reserve the book (decrease available count temporarily)
-    await updateDoc(bookRef, {
-      available: increment(-1),
+    await db.collection('books').doc(bookId).update({
+      available: FieldValue.increment(-1),
       status: bookData.available - 1 === 0 ? 'Borrowed' : 'Available',
     });
 
     // Create notification for user
-    await addDoc(collection(db, 'notifications'), {
+    await db.collection('notifications').add({
       userId,
       message: `Đã đặt lịch mượn sách "${bookTitle}". Thời gian nhận: ${pickupDate.toLocaleString('vi-VN')}. Lưu ý: Trễ quá 2 giờ sẽ tự động hủy.`,
       type: 'info',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       isRead: false,
     });
 
@@ -182,6 +213,17 @@ export async function POST(req: NextRequest) {
 // PATCH /api/appointments - Confirm, cancel, or expire appointment
 export async function PATCH(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const body = await req.json();
     const { appointmentId, action, confirmedBy, cancellationReason } = body;
 
@@ -192,14 +234,13 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const appointmentRef = doc(db, 'appointments', appointmentId);
-    const appointmentDoc = await getDoc(appointmentRef);
+    const appointmentDoc = await db.collection('appointments').doc(appointmentId).get();
 
-    if (!appointmentDoc.exists()) {
+    if (!appointmentDoc.exists) {
       return NextResponse.json({ error: 'Appointment not found' }, { status: 404 });
     }
 
-    const appointmentData = appointmentDoc.data();
+    const appointmentData = appointmentDoc.data()!;
 
     if (appointmentData.status !== 'pending') {
       return NextResponse.json(
@@ -209,7 +250,14 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (action === 'confirm') {
-      // Admin/Librarian confirms the appointment and creates borrowal
+      // Only admin/librarian can confirm appointments
+      if (!isAdminOrLibrarian(authenticatedUser)) {
+        return NextResponse.json(
+          { error: 'Admin or librarian access required' },
+          { status: 403 }
+        );
+      }
+      
       if (!confirmedBy) {
         return NextResponse.json(
           { error: 'confirmedBy is required for confirmation' },
@@ -224,28 +272,27 @@ export async function PATCH(req: NextRequest) {
 
       if (hoursLate > 2) {
         // Expired - too late
-        await updateDoc(appointmentRef, {
+        await db.collection('appointments').doc(appointmentId).update({
           status: 'expired',
           cancellationReason: `Quá thời hạn ${hoursLate} giờ (tối đa 2 giờ)`,
         });
 
         // Release the book
-        const bookRef = doc(db, 'books', appointmentData.bookId);
-        const bookDoc = await getDoc(bookRef);
-        if (bookDoc.exists()) {
-          const bookData = bookDoc.data();
-          await updateDoc(bookRef, {
-            available: increment(1),
+        const bookDoc = await db.collection('books').doc(appointmentData.bookId).get();
+        if (bookDoc.exists) {
+          const bookData = bookDoc.data()!;
+          await db.collection('books').doc(appointmentData.bookId).update({
+            available: FieldValue.increment(1),
             status: bookData.available + 1 > 0 ? 'Available' : 'Borrowed',
           });
         }
 
         // Notify user
-        await addDoc(collection(db, 'notifications'), {
+        await db.collection('notifications').add({
           userId: appointmentData.userId,
           message: `❌ Lịch đặt mượn sách "${appointmentData.bookTitle}" đã bị hủy do đến nhận muộn quá 2 giờ.`,
           type: 'error',
-          createdAt: serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
           isRead: false,
         });
 
@@ -260,41 +307,39 @@ export async function PATCH(req: NextRequest) {
       const borrowalData = {
         userId: appointmentData.userId,
         bookId: appointmentData.bookId,
-        borrowedAt: serverTimestamp(),
+        borrowedAt: FieldValue.serverTimestamp(),
         dueDate: Timestamp.fromDate(dueDate),
         status: 'borrowed',
         returnedAt: null,
       };
 
-      const borrowalRef = await addDoc(collection(db, 'borrowals'), borrowalData);
+      const borrowalRef = await db.collection('borrowals').add(borrowalData);
 
       // Update user's borrowed books
-      const userRef = doc(db, 'users', appointmentData.userId);
-      await updateDoc(userRef, {
-        booksOut: increment(1),
-        borrowedBooks: arrayUnion(appointmentData.bookId),
+      await db.collection('users').doc(appointmentData.userId).update({
+        booksOut: FieldValue.increment(1),
+        borrowedBooks: FieldValue.arrayUnion(appointmentData.bookId),
       });
 
       // Update book popularity counter
-      const bookRef = doc(db, 'books', appointmentData.bookId);
-      await updateDoc(bookRef, {
-        totalBorrows: increment(1),
+      await db.collection('books').doc(appointmentData.bookId).update({
+        totalBorrows: FieldValue.increment(1),
       });
 
       // Update appointment
-      await updateDoc(appointmentRef, {
+      await db.collection('appointments').doc(appointmentId).update({
         status: 'confirmed',
-        confirmedAt: serverTimestamp(),
+        confirmedAt: FieldValue.serverTimestamp(),
         confirmedBy,
         borrowalId: borrowalRef.id,
       });
 
       // Notify user
-      await addDoc(collection(db, 'notifications'), {
+      await db.collection('notifications').add({
         userId: appointmentData.userId,
         message: `✅ Đã xác nhận mượn sách "${appointmentData.bookTitle}". Hạn trả: ${dueDate.toLocaleDateString('vi-VN')}`,
         type: 'success',
-        createdAt: serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         isRead: false,
       });
 
@@ -324,29 +369,36 @@ export async function PATCH(req: NextRequest) {
       });
 
     } else if (action === 'cancel') {
+      // Verify user can only cancel their own appointments or admin/librarian can cancel any
+      if (authenticatedUser.uid !== appointmentData.userId && !isAdminOrLibrarian(authenticatedUser)) {
+        return NextResponse.json(
+          { error: 'Unauthorized access' },
+          { status: 403 }
+        );
+      }
+      
       // User or admin cancels the appointment
-      await updateDoc(appointmentRef, {
+      await db.collection('appointments').doc(appointmentId).update({
         status: 'cancelled',
         cancellationReason: cancellationReason || 'Người dùng hủy',
       });
 
       // Release the book
-      const bookRef = doc(db, 'books', appointmentData.bookId);
-      const bookDoc = await getDoc(bookRef);
-      if (bookDoc.exists()) {
-        const bookData = bookDoc.data();
-        await updateDoc(bookRef, {
-          available: increment(1),
+      const bookDoc = await db.collection('books').doc(appointmentData.bookId).get();
+      if (bookDoc.exists) {
+        const bookData = bookDoc.data()!;
+        await db.collection('books').doc(appointmentData.bookId).update({
+          available: FieldValue.increment(1),
           status: bookData.available + 1 > 0 ? 'Available' : 'Borrowed',
         });
       }
 
       // Notify user
-      await addDoc(collection(db, 'notifications'), {
+      await db.collection('notifications').add({
         userId: appointmentData.userId,
         message: `Lịch đặt mượn sách "${appointmentData.bookTitle}" đã bị hủy. Lý do: ${cancellationReason || 'Không rõ'}`,
         type: 'warning',
-        createdAt: serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         isRead: false,
       });
 

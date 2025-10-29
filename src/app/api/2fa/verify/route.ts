@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     if (!userData.twoFactorEnabled || !userData.twoFactorSecret) {
       return NextResponse.json(
-        { error: '2FA is not enabled for this account' },
+        { error: '2FA chưa được bật cho tài khoản này' },
         { status: 400 }
       );
     }
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     if (!verified) {
       return NextResponse.json(
-        { error: 'Invalid or expired verification code' },
+        { error: 'Mã xác thực không hợp lệ hoặc đã hết hạn' },
         { status: 401 }
       );
     }
@@ -55,12 +55,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       verified: true,
-      message: '2FA verification successful',
+      message: 'Xác thực 2FA thành công',
     });
   } catch (error) {
     console.error('2FA verify error:', error);
     return NextResponse.json(
-      { error: 'Failed to verify 2FA token', details: error },
+      { error: 'Không thể xác thực token 2FA', details: error },
       { status: 500 }
     );
   }

@@ -1,49 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  orderBy,
-  updateDoc,
-  serverTimestamp,
-  increment,
-  Timestamp,
-} from 'firebase/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { Reservation, getTimestamp } from '@/lib/types';
+import { 
+  initializeFirebaseAdmin, 
+  verifyAuthentication, 
+  isAdminOrLibrarian, 
+  getAdminDB 
+} from '@/lib/firebase-admin-utils';
 
 // GET /api/reservations - Get user's reservations or all reservations (admin)
 export async function GET(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
     const bookId = searchParams.get('bookId');
 
-    let q;
-    if (bookId) {
-      // Get all reservations for a specific book
-      // Filter and sort in memory to avoid composite index
-      q = query(
-        collection(db, 'reservations'),
-        where('bookId', '==', bookId)
+    // Verify user can only access their own reservations (unless admin/librarian)
+    if (userId && authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
       );
-    } else if (userId) {
-      // Get all reservations for a specific user
-      q = query(
-        collection(db, 'reservations'),
-        where('userId', '==', userId)
-      );
-    } else {
-      // Get all reservations (admin view)
-      q = collection(db, 'reservations');
     }
 
-    const snapshot = await getDocs(q);
+    let queryRef;
+    if (bookId) {
+      // Get all reservations for a specific book
+      queryRef = db.collection('reservations').where('bookId', '==', bookId);
+    } else if (userId) {
+      // Get all reservations for a specific user
+      queryRef = db.collection('reservations').where('userId', '==', userId);
+    } else {
+      // Get all reservations (admin view)
+      queryRef = db.collection('reservations');
+    }
+
+    const snapshot = await queryRef.get();
     
     if (snapshot.empty) {
       return NextResponse.json([]);
@@ -95,8 +98,28 @@ export async function GET(req: NextRequest) {
 // POST /api/reservations - Create a new reservation
 export async function POST(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // Get request data first
     const body = await req.json();
     const { bookId, userId, bookTitle, userName, userEmail } = body;
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
+    // Verify user can only create reservations for themselves (unless admin/librarian)
+    if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
+    }
 
     if (!bookId || !userId || !bookTitle || !userName) {
       return NextResponse.json(
@@ -106,15 +129,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if book exists and is unavailable
-    const bookRef = doc(db, 'books', bookId);
-    const bookDoc = await getDoc(bookRef);
+    const bookDoc = await db.collection('books').doc(bookId).get();
     
-    if (!bookDoc.exists()) {
+    if (!bookDoc.exists) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 });
     }
 
     const bookData = bookDoc.data();
-    if (bookData.available > 0) {
+    if (bookData && bookData.available > 0) {
       return NextResponse.json(
         { error: 'Book is currently available, please borrow it directly' },
         { status: 400 }
@@ -122,15 +144,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already has an active reservation for this book
-    const existingReservationQuery = query(
-      collection(db, 'reservations'),
-      where('bookId', '==', bookId),
-      where('userId', '==', userId),
-      where('status', '==', 'active')
-    );
-    const existingSnapshot = await getDocs(existingReservationQuery);
+    const existingReservations = await db.collection('reservations')
+      .where('bookId', '==', bookId)
+      .where('userId', '==', userId)
+      .where('status', '==', 'active')
+      .get();
     
-    if (!existingSnapshot.empty) {
+    if (!existingReservations.empty) {
       return NextResponse.json(
         { error: 'You already have an active reservation for this book' },
         { status: 400 }
@@ -138,12 +158,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Get current queue position (count active reservations + 1)
-    const queueQuery = query(
-      collection(db, 'reservations'),
-      where('bookId', '==', bookId),
-      where('status', '==', 'active')
-    );
-    const queueSnapshot = await getDocs(queueQuery);
+    const queueSnapshot = await db.collection('reservations')
+      .where('bookId', '==', bookId)
+      .where('status', '==', 'active')
+      .get();
     const position = queueSnapshot.size + 1;
 
     // Create reservation
@@ -155,24 +173,24 @@ export async function POST(req: NextRequest) {
       userEmail: userEmail || '',
       status: 'active',
       position,
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       notifiedAt: null,
       expiresAt: null,
     };
 
-    const reservationRef = await addDoc(collection(db, 'reservations'), reservationData);
+    const reservationRef = await db.collection('reservations').add(reservationData);
 
     // Update book's reservation count
-    await updateDoc(bookRef, {
-      reservationCount: increment(1),
+    await db.collection('books').doc(bookId).update({
+      reservationCount: FieldValue.increment(1),
     });
 
     // Create notification for user
-    await addDoc(collection(db, 'notifications'), {
+    await db.collection('notifications').add({
       userId,
       message: `Đã đặt chỗ cho sách "${bookTitle}". Vị trí trong hàng đợi: ${position}`,
       type: 'info',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       isRead: false,
     });
 
@@ -193,9 +211,20 @@ export async function POST(req: NextRequest) {
 // DELETE /api/reservations - Cancel a reservation
 export async function DELETE(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
     const { searchParams } = new URL(req.url);
     const reservationId = searchParams.get('id');
     const userId = searchParams.get('userId');
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
 
     if (!reservationId) {
       return NextResponse.json(
@@ -204,54 +233,55 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const reservationRef = doc(db, 'reservations', reservationId);
-    const reservationDoc = await getDoc(reservationRef);
+    const reservationDoc = await db.collection('reservations').doc(reservationId).get();
 
-    if (!reservationDoc.exists()) {
+    if (!reservationDoc.exists) {
       return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
     }
 
     const reservationData = reservationDoc.data();
-
-    // Verify user owns this reservation (unless admin)
-    if (userId && reservationData.userId !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    
+    // Verify user can only cancel their own reservations (unless admin/librarian)
+    if (reservationData && authenticatedUser.uid !== reservationData.userId && !isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
     }
 
     // Update reservation status to cancelled
-    await updateDoc(reservationRef, {
+    await db.collection('reservations').doc(reservationId).update({
       status: 'cancelled',
     });
 
     // Update book's reservation count
-    const bookRef = doc(db, 'books', reservationData.bookId);
-    await updateDoc(bookRef, {
-      reservationCount: increment(-1),
-    });
+    if (reservationData) {
+      await db.collection('books').doc(reservationData.bookId).update({
+        reservationCount: FieldValue.increment(-1),
+      });
 
-    // Reorder remaining reservations for this book
-    const remainingQuery = query(
-      collection(db, 'reservations'),
-      where('bookId', '==', reservationData.bookId),
-      where('status', '==', 'active'),
-      orderBy('createdAt', 'asc')
-    );
-    const remainingSnapshot = await getDocs(remainingQuery);
-    
-    // Update positions
-    const updatePromises = remainingSnapshot.docs.map((doc, index) => 
-      updateDoc(doc.ref, { position: index + 1 })
-    );
-    await Promise.all(updatePromises);
+      // Reorder remaining reservations for this book
+      const remainingSnapshot = await db.collection('reservations')
+        .where('bookId', '==', reservationData.bookId)
+        .where('status', '==', 'active')
+        .orderBy('createdAt', 'asc')
+        .get();
+      
+      // Update positions
+      const updatePromises = remainingSnapshot.docs.map((doc, index) => 
+        doc.ref.update({ position: index + 1 })
+      );
+      await Promise.all(updatePromises);
 
-    // Notify user
-    await addDoc(collection(db, 'notifications'), {
-      userId: reservationData.userId,
-      message: `Đã hủy đặt chỗ cho sách "${reservationData.bookTitle}"`,
-      type: 'info',
-      createdAt: serverTimestamp(),
-      isRead: false,
-    });
+      // Notify user
+      await db.collection('notifications').add({
+        userId: reservationData.userId,
+        message: `Đã hủy đặt chỗ cho sách "${reservationData.bookTitle}"`,
+        type: 'info',
+        createdAt: FieldValue.serverTimestamp(),
+        isRead: false,
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

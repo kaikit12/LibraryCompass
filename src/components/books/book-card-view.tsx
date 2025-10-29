@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ReserveButton } from "./reserve-button";
 import { BookAppointmentDialog } from "./book-appointment-dialog";
 import { ReviewDialog } from "./review-dialog";
+import { authenticatedFetch } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -55,7 +56,7 @@ export function BookCardView({
       if (!user?.id) return;
       
       try {
-        const response = await fetch(`/api/wishlist?userId=${user.id}`);
+        const response = await authenticatedFetch(`/api/wishlist?userId=${user.id}`);
         if (response.ok) {
           const data = await response.json();
           const bookIds = new Set<string>(data.wishlist.map((item: any) => item.bookId as string));
@@ -128,9 +129,8 @@ export function BookCardView({
 
     setAddingToWishlist(book.id);
     try {
-      const response = await fetch('/api/wishlist', {
+      const response = await authenticatedFetch('/api/wishlist', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
           bookId: book.id,

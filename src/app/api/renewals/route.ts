@@ -1,46 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import {
-  collection,
-  addDoc,
-  doc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  updateDoc,
-  serverTimestamp,
-  Timestamp,
-} from 'firebase/firestore';
+import { 
+  initializeFirebaseAdmin, 
+  verifyAuthentication, 
+  isAdminOrLibrarian, 
+  getAdminDB 
+} from '@/lib/firebase-admin-utils';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { RenewalRequest } from '@/lib/types';
 import { addDays } from 'date-fns';
 
 // GET /api/renewals - Get renewal requests
 export async function GET(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
 
-    let q;
+    let renewalsSnapshot;
     if (userId) {
+      // Verify user can only access their own renewals (unless admin/librarian)
+      if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+        return NextResponse.json(
+          { error: 'Unauthorized access' },
+          { status: 403 }
+        );
+      }
+      
       // Get all renewal requests for a specific user
-      q = query(
-        collection(db, 'renewals'),
-        where('userId', '==', userId)
-      );
+      renewalsSnapshot = await db.collection('renewals')
+        .where('userId', '==', userId)
+        .get();
     } else {
-      // Get all renewal requests (admin view)
-      q = collection(db, 'renewals');
+      // Get all renewal requests (admin view only)
+      if (!isAdminOrLibrarian(authenticatedUser)) {
+        return NextResponse.json(
+          { error: 'Admin access required' },
+          { status: 403 }
+        );
+      }
+      renewalsSnapshot = await db.collection('renewals').get();
     }
 
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
+    if (renewalsSnapshot.empty) {
       return NextResponse.json([]);
     }
     
-    let renewals = snapshot.docs.map((doc) => {
+    let renewals = renewalsSnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -57,11 +73,11 @@ export async function GET(req: NextRequest) {
 
     // Filter by status if provided
     if (status) {
-      renewals = renewals.filter(r => r.status === status);
+      renewals = renewals.filter((r: any) => r.status === status);
     }
 
     // Sort by createdAt desc
-    renewals = renewals.sort((a, b) => 
+    renewals = renewals.sort((a: any, b: any) => 
       b.createdAt.getTime() - a.createdAt.getTime()
     );
 
@@ -78,6 +94,17 @@ export async function GET(req: NextRequest) {
 // POST /api/renewals - Create a new renewal request
 export async function POST(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const body = await req.json();
     const { borrowalId, bookId, userId, bookTitle, userName, currentDueDate, requestedDays = 14 } = body;
 
@@ -88,15 +115,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Verify user can only create renewal requests for themselves (unless admin/librarian)
+    if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
+    }
+
     // Check if borrowal exists and is active
-    const borrowalRef = doc(db, 'borrowals', borrowalId);
-    const borrowalDoc = await getDoc(borrowalRef);
+    const borrowalDoc = await db.collection('borrowals').doc(borrowalId).get();
     
-    if (!borrowalDoc.exists()) {
+    if (!borrowalDoc.exists) {
       return NextResponse.json({ error: 'Borrowal not found' }, { status: 404 });
     }
 
-    const borrowalData = borrowalDoc.data();
+    const borrowalData = borrowalDoc.data()!;
     if (borrowalData.status !== 'borrowed') {
       return NextResponse.json(
         { error: 'Book is not currently borrowed' },
@@ -105,12 +139,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if book has pending reservations
-    const reservationsQuery = query(
-      collection(db, 'reservations'),
-      where('bookId', '==', bookId),
-      where('status', '==', 'active')
-    );
-    const reservationsSnapshot = await getDocs(reservationsQuery);
+    const reservationsSnapshot = await db.collection('reservations')
+      .where('bookId', '==', bookId)
+      .where('status', '==', 'active')
+      .get();
     
     if (!reservationsSnapshot.empty) {
       return NextResponse.json(
@@ -120,12 +152,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already has a pending renewal request for this borrowal
-    const existingRenewalQuery = query(
-      collection(db, 'renewals'),
-      where('borrowalId', '==', borrowalId),
-      where('status', '==', 'pending')
-    );
-    const existingSnapshot = await getDocs(existingRenewalQuery);
+    const existingSnapshot = await db.collection('renewals')
+      .where('borrowalId', '==', borrowalId)
+      .where('status', '==', 'pending')
+      .get();
     
     if (!existingSnapshot.empty) {
       return NextResponse.json(
@@ -144,20 +174,20 @@ export async function POST(req: NextRequest) {
       currentDueDate: Timestamp.fromDate(new Date(currentDueDate)),
       requestedDays,
       status: 'pending',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       processedAt: null,
       processedBy: null,
       rejectionReason: null,
     };
 
-    const renewalRef = await addDoc(collection(db, 'renewals'), renewalData);
+    const renewalRef = await db.collection('renewals').add(renewalData);
 
     // Create notification for user
-    await addDoc(collection(db, 'notifications'), {
+    await db.collection('notifications').add({
       userId,
       message: `Yêu cầu gia hạn sách "${bookTitle}" đã được gửi. Vui lòng chờ xác nhận.`,
       type: 'info',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       isRead: false,
     });
 
@@ -177,6 +207,24 @@ export async function POST(req: NextRequest) {
 // PATCH /api/renewals - Approve or reject a renewal request
 export async function PATCH(req: NextRequest) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication and admin/librarian access
+    const authResult = await verifyAuthentication(req);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
+    if (!isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Admin or librarian access required' },
+        { status: 403 }
+      );
+    }
+    
     const body = await req.json();
     const { renewalId, action, processedBy, rejectionReason } = body;
 
@@ -194,14 +242,13 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const renewalRef = doc(db, 'renewals', renewalId);
-    const renewalDoc = await getDoc(renewalRef);
+    const renewalDoc = await db.collection('renewals').doc(renewalId).get();
 
-    if (!renewalDoc.exists()) {
+    if (!renewalDoc.exists) {
       return NextResponse.json({ error: 'Renewal request not found' }, { status: 404 });
     }
 
-    const renewalData = renewalDoc.data();
+    const renewalData = renewalDoc.data()!;
 
     if (renewalData.status !== 'pending') {
       return NextResponse.json(
@@ -212,40 +259,39 @@ export async function PATCH(req: NextRequest) {
 
     if (action === 'approve') {
       // Update the borrowal's due date
-      const borrowalRef = doc(db, 'borrowals', renewalData.borrowalId);
-      const borrowalDoc = await getDoc(borrowalRef);
+      const borrowalDoc = await db.collection('borrowals').doc(renewalData.borrowalId).get();
 
-      if (!borrowalDoc.exists()) {
+      if (!borrowalDoc.exists) {
         return NextResponse.json({ error: 'Borrowal not found' }, { status: 404 });
       }
 
       const currentDueDate = renewalData.currentDueDate.toDate();
       const newDueDate = addDays(currentDueDate, renewalData.requestedDays);
 
-      await updateDoc(borrowalRef, {
+      await db.collection('borrowals').doc(renewalData.borrowalId).update({
         dueDate: Timestamp.fromDate(newDueDate),
       });
 
       // Update renewal status
-      await updateDoc(renewalRef, {
+      await db.collection('renewals').doc(renewalId).update({
         status: 'approved',
-        processedAt: serverTimestamp(),
+        processedAt: FieldValue.serverTimestamp(),
         processedBy,
       });
 
       // Notify user
-      await addDoc(collection(db, 'notifications'), {
+      await db.collection('notifications').add({
         userId: renewalData.userId,
         message: `✅ Yêu cầu gia hạn sách "${renewalData.bookTitle}" đã được chấp nhận. Hạn mới: ${newDueDate.toLocaleDateString('vi-VN')}`,
         type: 'success',
-        createdAt: serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         isRead: false,
       });
 
       // Send email notification
       try {
         // Fetch user email
-        const userDoc = await getDoc(doc(db, 'users', renewalData.userId));
+        const userDoc = await db.collection('users').doc(renewalData.userId).get();
         const userEmail = userDoc.data()?.email;
 
         if (userEmail) {
@@ -274,19 +320,19 @@ export async function PATCH(req: NextRequest) {
       });
     } else {
       // Reject the renewal
-      await updateDoc(renewalRef, {
+      await db.collection('renewals').doc(renewalId).update({
         status: 'rejected',
-        processedAt: serverTimestamp(),
+        processedAt: FieldValue.serverTimestamp(),
         processedBy,
         rejectionReason: rejectionReason || 'No reason provided',
       });
 
       // Notify user
-      await addDoc(collection(db, 'notifications'), {
+      await db.collection('notifications').add({
         userId: renewalData.userId,
         message: `❌ Yêu cầu gia hạn sách "${renewalData.bookTitle}" đã bị từ chối. Lý do: ${rejectionReason || 'Không có lý do'}`,
         type: 'warning',
-        createdAt: serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         isRead: false,
       });
 

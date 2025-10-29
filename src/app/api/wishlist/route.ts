@@ -1,21 +1,57 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
-  getDoc,
-  updateDoc,
-} from 'firebase/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+// Firebase Admin initialization function
+function initializeFirebaseAdmin() {
+  if (!getApps().length) {
+    try {
+      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+      }
+      
+      // Handle both escaped and unescaped private keys
+      if (privateKey.includes('\\n')) {
+        privateKey = privateKey.replace(/\\n/g, '\n');
+      }
+      
+      initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: privateKey,
+        }),
+      });
+      
+      console.log('Firebase Admin initialized successfully for wishlist API');
+    } catch (error) {
+      console.error('Failed to initialize Firebase Admin:', error);
+      throw error;
+    }
+  }
+}
 
 // GET - Fetch user's wishlist
 export async function GET(request: Request) {
   try {
+    // Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getFirestore();
+    
+    // Verify authentication
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await getAuth().verifyIdToken(token);
+    
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
 
@@ -26,8 +62,18 @@ export async function GET(request: Request) {
       );
     }
 
-    const q = query(collection(db, 'wishlist'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
+    // Verify user can only access their own wishlist (unless admin/librarian)
+    if (decodedToken.uid !== userId && 
+        decodedToken.role !== 'admin' && 
+        decodedToken.role !== 'librarian') {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
+    }
+
+    const wishlistRef = db.collection('wishlist').where('userId', '==', userId);
+    const querySnapshot = await wishlistRef.get();
     
     const wishlist = querySnapshot.docs.map((doc) => ({
       id: doc.id,
@@ -48,6 +94,22 @@ export async function GET(request: Request) {
 // POST - Add book to wishlist
 export async function POST(request: Request) {
   try {
+    // Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getFirestore();
+    
+    // Verify authentication
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await getAuth().verifyIdToken(token);
+    
     const { userId, bookId, priority, notes } = await request.json();
 
     if (!userId || !bookId) {
@@ -57,13 +119,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // Verify user can only add to their own wishlist (unless admin/librarian)
+    if (decodedToken.uid !== userId && 
+        decodedToken.role !== 'admin' && 
+        decodedToken.role !== 'librarian') {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
+    }
+
     // Check if already in wishlist
-    const existingQuery = query(
-      collection(db, 'wishlist'),
-      where('userId', '==', userId),
-      where('bookId', '==', bookId)
-    );
-    const existingItems = await getDocs(existingQuery);
+    const existingQuery = db.collection('wishlist')
+      .where('userId', '==', userId)
+      .where('bookId', '==', bookId);
+    const existingItems = await existingQuery.get();
 
     if (!existingItems.empty) {
       return NextResponse.json(
@@ -73,10 +143,9 @@ export async function POST(request: Request) {
     }
 
     // Get book details
-    const bookRef = doc(db, 'books', bookId);
-    const bookDoc = await getDoc(bookRef);
+    const bookDoc = await db.collection('books').doc(bookId).get();
 
-    if (!bookDoc.exists()) {
+    if (!bookDoc.exists) {
       return NextResponse.json({ error: 'Book not found' }, { status: 404 });
     }
 
@@ -86,22 +155,22 @@ export async function POST(request: Request) {
     const wishlistData = {
       userId,
       bookId,
-      bookTitle: bookData.title,
-      bookAuthor: bookData.author,
-      bookImageUrl: bookData.imageUrl || '',
-      addedAt: serverTimestamp(),
+      bookTitle: bookData?.title,
+      bookAuthor: bookData?.author,
+      bookImageUrl: bookData?.imageUrl || '',
+      addedAt: FieldValue.serverTimestamp(),
       priority: priority || 'medium',
       notes: notes || '',
     };
 
-    const wishlistRef = await addDoc(collection(db, 'wishlist'), wishlistData);
+    const wishlistRef = await db.collection('wishlist').add(wishlistData);
 
     // Create notification
-    await addDoc(collection(db, 'notifications'), {
+    await db.collection('notifications').add({
       userId,
-      message: `Đã thêm "${bookData.title}" vào danh sách đọc của bạn`,
+      message: `Đã thêm "${bookData?.title}" vào danh sách đọc của bạn`,
       type: 'info',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       isRead: false,
     });
 
@@ -122,6 +191,22 @@ export async function POST(request: Request) {
 // DELETE - Remove book from wishlist
 export async function DELETE(request: Request) {
   try {
+    // Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getFirestore();
+    
+    // Verify authentication
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await getAuth().verifyIdToken(token);
+    
     const { searchParams } = new URL(request.url);
     const wishlistId = searchParams.get('wishlistId');
 
@@ -132,7 +217,28 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await deleteDoc(doc(db, 'wishlist', wishlistId));
+    // Get the wishlist item to verify ownership
+    const wishlistDoc = await db.collection('wishlist').doc(wishlistId).get();
+    if (!wishlistDoc.exists) {
+      return NextResponse.json(
+        { error: 'Wishlist item not found' },
+        { status: 404 }
+      );
+    }
+
+    const wishlistData = wishlistDoc.data();
+    
+    // Verify user can only delete their own wishlist items (unless admin/librarian)
+    if (decodedToken.uid !== wishlistData?.userId && 
+        decodedToken.role !== 'admin' && 
+        decodedToken.role !== 'librarian') {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
+    }
+
+    await db.collection('wishlist').doc(wishlistId).delete();
 
     return NextResponse.json({
       success: true,
@@ -150,6 +256,22 @@ export async function DELETE(request: Request) {
 // PATCH - Update wishlist item (priority, notes)
 export async function PATCH(request: Request) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getFirestore();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await getAuth().verifyIdToken(token);
+    
     const { wishlistId, priority, notes } = await request.json();
 
     if (!wishlistId) {
@@ -159,11 +281,32 @@ export async function PATCH(request: Request) {
       );
     }
 
+    // 🚨 SECURITY FIX: Get the wishlist item to verify ownership
+    const wishlistDoc = await db.collection('wishlist').doc(wishlistId).get();
+    if (!wishlistDoc.exists) {
+      return NextResponse.json(
+        { error: 'Wishlist item not found' },
+        { status: 404 }
+      );
+    }
+
+    const wishlistData = wishlistDoc.data();
+    
+    // 🚨 SECURITY FIX: Verify user can only update their own wishlist items (unless admin/librarian)
+    if (decodedToken.uid !== wishlistData?.userId && 
+        decodedToken.role !== 'admin' && 
+        decodedToken.role !== 'librarian') {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
+    }
+
     const updateData: any = {};
     if (priority) updateData.priority = priority;
     if (notes !== undefined) updateData.notes = notes;
 
-    await updateDoc(doc(db, 'wishlist', wishlistId), updateData);
+    await db.collection('wishlist').doc(wishlistId).update(updateData);
 
     return NextResponse.json({
       success: true,

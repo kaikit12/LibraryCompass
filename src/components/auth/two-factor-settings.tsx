@@ -41,8 +41,8 @@ export function TwoFactorSettings({
   const handleDisable2FA = async () => {
     if (!disableCode || disableCode.length !== 6) {
       toast({
-        title: 'Invalid Code',
-        description: 'Please enter a 6-digit verification code',
+        title: 'Mã không hợp lệ',
+        description: 'Vui lòng nhập mã xác thực 6 chữ số',
         variant: 'destructive',
       });
       return;
@@ -64,8 +64,8 @@ export function TwoFactorSettings({
       }
 
       toast({
-        title: '2FA Disabled',
-        description: 'Two-factor authentication has been disabled',
+        title: 'Đã tắt 2FA',
+        description: 'Xác thực hai yếu tố đã được tắt',
       });
 
       setShowDisableDialog(false);
@@ -73,7 +73,7 @@ export function TwoFactorSettings({
       onUpdate();
     } catch (error: any) {
       toast({
-        title: 'Disable Failed',
+        title: 'Tắt thất bại',
         description: error.message,
         variant: 'destructive',
       });
@@ -90,21 +90,21 @@ export function TwoFactorSettings({
             <div className="space-y-1">
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Two-Factor Authentication
+                Xác thực hai yếu tố
               </CardTitle>
               <CardDescription>
-                Add an extra layer of security to your account
+                Thêm lớp bảo mật bổ sung cho tài khoản của bạn
               </CardDescription>
             </div>
             {isEnabled ? (
               <Badge variant="default" className="bg-green-600">
                 <ShieldCheck className="h-3 w-3 mr-1" />
-                Enabled
+                Đã bật
               </Badge>
             ) : (
               <Badge variant="secondary">
                 <ShieldOff className="h-3 w-3 mr-1" />
-                Disabled
+                Đã tắt
               </Badge>
             )}
           </div>
@@ -114,14 +114,13 @@ export function TwoFactorSettings({
             <AlertDescription>
               {isEnabled ? (
                 <>
-                  Two-factor authentication is <strong>enabled</strong> for your account. You
-                  will need to enter a verification code from your authenticator app when
-                  logging in.
+                  Xác thực hai yếu tố đã được <strong>bật</strong> cho tài khoản của bạn. Bạn
+                  sẽ cần nhập mã xác thực từ ứng dụng authenticator khi đăng nhập.
                 </>
               ) : (
                 <>
-                  Two-factor authentication adds an extra layer of security by requiring a
-                  verification code from your phone in addition to your password.
+                  Xác thực hai yếu tố thêm lớp bảo mật bổ sung bằng cách yêu cầu mã
+                  xác thực từ điện thoại của bạn ngoài mật khẩu.
                 </>
               )}
             </AlertDescription>
@@ -130,30 +129,30 @@ export function TwoFactorSettings({
           {isEnabled ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                If you want to disable 2FA, you&apos;ll need to verify your identity with a
-                verification code from your authenticator app.
+                Nếu bạn muốn tắt 2FA, bạn sẽ cần xác thực danh tính bằng mã
+                xác thực từ ứng dụng authenticator của bạn.
               </p>
               <Button
                 variant="destructive"
                 onClick={() => setShowDisableDialog(true)}
               >
                 <ShieldOff className="h-4 w-4 mr-2" />
-                Disable 2FA
+                Tắt 2FA
               </Button>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">Benefits of 2FA:</h4>
+                <h4 className="font-medium text-sm">Lợi ích của 2FA:</h4>
                 <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                  <li>Protects your account even if your password is compromised</li>
-                  <li>Prevents unauthorized access to your personal information</li>
-                  <li>Works with popular authenticator apps like Google Authenticator</li>
+                  <li>Bảo vệ tài khoản của bạn ngay cả khi mật khẩu bị lộ</li>
+                  <li>Ngăn chặn truy cập trái phép vào thông tin cá nhân của bạn</li>
+                  <li>Hoạt động với các ứng dụng authenticator phổ biến như Google Authenticator</li>
                 </ul>
               </div>
               <Button onClick={() => setShowSetupDialog(true)}>
                 <ShieldCheck className="h-4 w-4 mr-2" />
-                Enable 2FA
+                Bật 2FA
               </Button>
             </div>
           )}
@@ -172,15 +171,15 @@ export function TwoFactorSettings({
       <AlertDialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disable Two-Factor Authentication?</AlertDialogTitle>
+            <AlertDialogTitle>Tắt xác thực hai yếu tố?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will make your account less secure. To confirm, please enter a
-              verification code from your authenticator app.
+              Điều này sẽ làm cho tài khoản của bạn kém an toàn hơn. Để xác nhận, vui lòng nhập
+              mã xác thực từ ứng dụng authenticator của bạn.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="space-y-2 py-4">
-            <Label htmlFor="disable-code">Verification Code</Label>
+            <Label htmlFor="disable-code">Mã xác thực</Label>
             <Input
               id="disable-code"
               type="text"
@@ -199,7 +198,7 @@ export function TwoFactorSettings({
                 setShowDisableDialog(false);
               }}
             >
-              Cancel
+              Hủy
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDisable2FA}
@@ -209,10 +208,10 @@ export function TwoFactorSettings({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Disabling...
+                  Đang tắt...
                 </>
               ) : (
-                'Disable 2FA'
+                'Tắt 2FA'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

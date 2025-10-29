@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     // Check if 2FA is already enabled
     if (userData.twoFactorEnabled) {
       return NextResponse.json(
-        { error: '2FA is already enabled for this account' },
+        { error: '2FA đã được bật cho tài khoản này' },
         { status: 400 }
       );
     }
@@ -114,7 +114,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!verified) {
       return NextResponse.json(
-        { error: 'Invalid verification code' },
+        { error: 'Mã xác thực không hợp lệ' },
         { status: 400 }
       );
     }
@@ -126,7 +126,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: '2FA has been successfully enabled',
+      message: '2FA đã được bật thành công',
     });
   } catch (error) {
     console.error('2FA verification error:', error);
@@ -168,7 +168,7 @@ export async function DELETE(request: NextRequest) {
 
     if (!userData.twoFactorEnabled || !userData.twoFactorSecret) {
       return NextResponse.json(
-        { error: '2FA is not enabled for this account' },
+        { error: '2FA chưa được bật cho tài khoản này' },
         { status: 400 }
       );
     }
@@ -183,7 +183,7 @@ export async function DELETE(request: NextRequest) {
 
     if (!verified) {
       return NextResponse.json(
-        { error: 'Invalid verification code' },
+        { error: 'Mã xác thực không hợp lệ' },
         { status: 400 }
       );
     }
@@ -196,7 +196,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: '2FA has been successfully disabled',
+      message: '2FA đã được tắt thành công',
     });
   } catch (error) {
     console.error('2FA disable error:', error);

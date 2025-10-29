@@ -37,8 +37,8 @@ export function Verify2FADialog({
   const handleVerify = async () => {
     if (!verificationCode || verificationCode.length !== 6) {
       toast({
-        title: 'Invalid Code',
-        description: 'Please enter a 6-digit verification code',
+        title: 'Mã không hợp lệ',
+        description: 'Vui lòng nhập mã xác thực 6 chữ số',
         variant: 'destructive',
       });
       return;
@@ -62,8 +62,8 @@ export function Verify2FADialog({
       }
 
       toast({
-        title: 'Verification Successful',
-        description: 'You have been logged in successfully',
+        title: 'Xác thực thành công',
+        description: 'Bạn đã đăng nhập thành công',
       });
 
       onSuccess();
@@ -71,8 +71,8 @@ export function Verify2FADialog({
       setVerificationCode('');
     } catch (error: any) {
       toast({
-        title: 'Verification Failed',
-        description: error.message || 'Invalid or expired code',
+        title: 'Xác thực thất bại',
+        description: error.message || 'Mã không hợp lệ hoặc đã hết hạn',
         variant: 'destructive',
       });
       setVerificationCode('');
@@ -93,23 +93,23 @@ export function Verify2FADialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-blue-600" />
-            Two-Factor Authentication Required
+            Yêu cầu xác thực hai yếu tố
           </DialogTitle>
           <DialogDescription>
-            Enter the verification code from your authenticator app
+            Nhập mã xác thực từ ứng dụng authenticator của bạn
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <Alert>
             <AlertDescription>
-              Your account is protected with 2FA. Please enter the 6-digit code from your
-              authenticator app to continue.
+              Tài khoản của bạn được bảo vệ bằng 2FA. Vui lòng nhập mã 6 chữ số từ
+              ứng dụng authenticator để tiếp tục.
             </AlertDescription>
           </Alert>
 
           <div className="space-y-2">
-            <Label htmlFor="2fa-code">Verification Code</Label>
+            <Label htmlFor="2fa-code">Mã xác thực</Label>
             <Input
               id="2fa-code"
               type="text"
@@ -134,7 +134,7 @@ export function Verify2FADialog({
               disabled={loading}
               className="flex-1"
             >
-              Cancel
+              Hủy
             </Button>
             <Button
               onClick={handleVerify}
@@ -144,10 +144,10 @@ export function Verify2FADialog({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verifying...
+                  Đang xác thực...
                 </>
               ) : (
-                'Verify'
+                'Xác thực'
               )}
             </Button>
           </div>

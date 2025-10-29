@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { doc, runTransaction, increment, arrayRemove, collection, query, where, getDocs, orderBy, updateDoc, serverTimestamp, addDoc, Timestamp } from 'firebase/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { differenceInDays, addDays } from 'date-fns';
 import { createNotification } from '@/lib/notifications';
+import { 
+  initializeFirebaseAdmin, 
+  verifyAuthentication, 
+  isAdminOrLibrarian, 
+  getAdminDB 
+} from '@/lib/firebase-admin-utils';
 
 const DEFAULT_LATE_FEE_PER_DAY = 1.00; // Default $1 per day if not specified on the book
 const MAX_LATE_DAYS = 90; // Cap at 90 days
@@ -10,19 +15,38 @@ const MAX_LATE_FEE = 50.00; // Maximum late fee of $50
 
 export async function POST(request: Request) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // Get request data first
     const { bookId, userId } = await request.json();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(request);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
+    // Verify user can only return books for themselves (unless admin/librarian)
+    if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
+      );
+    }
 
     if (!bookId || !userId) {
       return NextResponse.json({ success: false, message: 'Book ID and User ID are required.' }, { status: 400 });
     }
 
     // Step 1: Find the active borrowal record OUTSIDE the transaction.
-    const borrowalsRef = collection(db, 'borrowals');
-    const q = query(borrowalsRef, where("bookId", "==", bookId), where("userId", "==", userId), where("status", "==", "borrowed"));
-    
-    const borrowalSnapshot = await getDocs(q);
-
-    if (borrowalSnapshot.empty) {
+    const borrowalSnapshot = await db.collection('borrowals')
+      .where("bookId", "==", bookId)
+      .where("userId", "==", userId) 
+      .where("status", "==", "borrowed")
+      .get();    if (borrowalSnapshot.empty) {
         throw new Error('Return not found. No active borrowal record for this user and book.');
     }
     
@@ -32,30 +56,29 @@ export async function POST(request: Request) {
     let lateFee = 0;
     let daysLate = 0;
     let bookTitle = '';
-  // note: transaction document id can be inferred from Firestore if needed; not used here
-
-    await runTransaction(db, async (transaction) => {
-        const bookRef = doc(db, 'books', bookId);
-        const userRef = doc(db, 'users', userId);
+    // Step 2: Run transaction to update book, user, and borrowal records
+    await db.runTransaction(async (transaction) => {
+        const bookRef = db.collection('books').doc(bookId);
+        const userRef = db.collection('users').doc(userId);
 
         // Read documents inside the transaction
         const bookDoc = await transaction.get(bookRef);
         const userDoc = await transaction.get(userRef);
         const currentBorrowalDoc = await transaction.get(borrowalDocRef); 
 
-        if (!bookDoc.exists()) {
+        if (!bookDoc.exists) {
           throw new Error("Book not found during transaction.");
         }
-        if (!userDoc.exists()) {
+        if (!userDoc.exists) {
           throw new Error("Reader not found during transaction.");
         }
-        if (!currentBorrowalDoc.exists()){
+        if (!currentBorrowalDoc.exists){
             throw new Error("Borrowal record disappeared during transaction.");
         }
         
-        const bookData = bookDoc.data();
+        const bookData = bookDoc.data()!;
         bookTitle = bookData.title;
-        const borrowalData = currentBorrowalDoc.data();
+        const borrowalData = currentBorrowalDoc.data()!;
         const dueDate = borrowalData.dueDate.toDate();
         const returnDate = new Date();
 
@@ -71,18 +94,18 @@ export async function POST(request: Request) {
 
         // Perform writes
         transaction.update(bookRef, {
-            available: increment(1),
+            available: FieldValue.increment(1),
             status: 'Available'
         });
 
-  const userUpdate: any = {
-            booksOut: increment(-1),
-            borrowedBooks: arrayRemove(bookId),
+        const userUpdate: any = {
+            booksOut: FieldValue.increment(-1),
+            borrowedBooks: FieldValue.arrayRemove(bookId),
         };
         if (lateFee > 0) {
-            userUpdate.lateFees = increment(lateFee);
+            userUpdate.lateFees = FieldValue.increment(lateFee);
             
-            const transactionRef = doc(collection(db, 'transactions'));
+            const transactionRef = db.collection('transactions').doc();
             transaction.set(transactionRef, {
               userId,
               bookId,
@@ -127,15 +150,16 @@ export async function POST(request: Request) {
 // Helper function to handle reservation queue when book is returned
 async function handleReservationQueue(bookId: string, bookTitle: string) {
   try {
-    // Get the first active reservation in queue (ordered by createdAt)
-    const reservationsQuery = query(
-      collection(db, 'reservations'),
-      where('bookId', '==', bookId),
-      where('status', '==', 'active'),
-      orderBy('createdAt', 'asc')
-    );
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
     
-    const reservationsSnapshot = await getDocs(reservationsQuery);
+    // Get the first active reservation in queue (ordered by createdAt)
+    const reservationsSnapshot = await db.collection('reservations')
+      .where('bookId', '==', bookId)
+      .where('status', '==', 'active')
+      .orderBy('createdAt', 'asc')
+      .get();
     
     if (reservationsSnapshot.empty) {
       return; // No reservations, nothing to do
@@ -149,31 +173,31 @@ async function handleReservationQueue(bookId: string, bookTitle: string) {
     const expirationDate = addDays(new Date(), 2);
 
     // Mark reservation as fulfilled
-    await updateDoc(reservationRef, {
+    await reservationRef.update({
       status: 'fulfilled',
-      notifiedAt: serverTimestamp(),
+      notifiedAt: FieldValue.serverTimestamp(),
       expiresAt: Timestamp.fromDate(expirationDate),
     });
 
     // Update book's reservation count
-    const bookRef = doc(db, 'books', bookId);
-    await updateDoc(bookRef, {
-      reservationCount: increment(-1),
+    const bookRef = db.collection('books').doc(bookId);
+    await bookRef.update({
+      reservationCount: FieldValue.increment(-1),
     });
 
     // Update positions for remaining reservations
     const remainingReservations = reservationsSnapshot.docs.slice(1);
-    const updatePromises = remainingReservations.map((doc, index) => 
-      updateDoc(doc.ref, { position: index + 1 })
+    const updatePromises = remainingReservations.map((doc: any, index: number) => 
+      doc.ref.update({ position: index + 1 })
     );
     await Promise.all(updatePromises);
 
     // Notify the user their reserved book is available
-    await addDoc(collection(db, 'notifications'), {
+    await db.collection('notifications').add({
       userId: reservationData.userId,
       message: `📚 Sách "${bookTitle}" đã sẵn sàng! Bạn có 48 giờ để mượn sách.`,
       type: 'success',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       isRead: false,
     });
 

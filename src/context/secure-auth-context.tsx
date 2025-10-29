@@ -212,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return { 
                     success: false, 
                     requiresTwoFA: true,
-                    error: "Two-factor authentication required" 
+                    error: "Yêu cầu xác thực hai yếu tố" 
                 };
             }
             

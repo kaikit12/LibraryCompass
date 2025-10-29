@@ -56,12 +56,12 @@ export function Setup2FADialog({
       setSecret(data.secret);
       setStep('verify');
       toast({
-        title: 'QR Code Generated',
-        description: 'Scan the QR code with your authenticator app',
+        title: 'Tạo mã QR thành công',
+        description: 'Quét mã QR bằng ứng dụng authenticator của bạn',
       });
     } catch (error: any) {
       toast({
-        title: 'Setup Failed',
+        title: 'Thiết lập thất bại',
         description: error.message,
         variant: 'destructive',
       });
@@ -73,8 +73,8 @@ export function Setup2FADialog({
   const handleVerify = async () => {
     if (!verificationCode || verificationCode.length !== 6) {
       toast({
-        title: 'Invalid Code',
-        description: 'Please enter a 6-digit verification code',
+        title: 'Mã không hợp lệ',
+        description: 'Vui lòng nhập mã xác thực 6 chữ số',
         variant: 'destructive',
       });
       return;
@@ -98,8 +98,8 @@ export function Setup2FADialog({
       }
 
       toast({
-        title: '2FA Enabled',
-        description: 'Two-factor authentication has been successfully enabled',
+        title: 'Đã bật 2FA',
+        description: 'Xác thực hai yếu tố đã được bật thành công',
       });
 
       onSuccess?.();
@@ -112,7 +112,7 @@ export function Setup2FADialog({
       setVerificationCode('');
     } catch (error: any) {
       toast({
-        title: 'Verification Failed',
+        title: 'Xác thực thất bại',
         description: error.message,
         variant: 'destructive',
       });
@@ -125,8 +125,8 @@ export function Setup2FADialog({
     navigator.clipboard.writeText(secret);
     setCopied(true);
     toast({
-      title: 'Copied',
-      description: 'Secret key copied to clipboard',
+      title: 'Đã sao chép',
+      description: 'Mã bí mật đã được sao chép vào clipboard',
     });
     setTimeout(() => setCopied(false), 2000);
   };
@@ -137,10 +137,10 @@ export function Setup2FADialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-blue-600" />
-            Enable Two-Factor Authentication
+            Bật xác thực hai yếu tố
           </DialogTitle>
           <DialogDescription>
-            Add an extra layer of security to your account
+            Thêm lớp bảo mật bổ sung cho tài khoản của bạn
           </DialogDescription>
         </DialogHeader>
 
@@ -148,16 +148,16 @@ export function Setup2FADialog({
           <div className="space-y-4">
             <Alert>
               <AlertDescription>
-                Two-factor authentication (2FA) helps protect your account by requiring a
-                verification code from your phone in addition to your password.
+                Xác thực hai yếu tố (2FA) giúp bảo vệ tài khoản của bạn bằng cách yêu cầu mã
+                xác thực từ điện thoại của bạn ngoài mật khẩu.
               </AlertDescription>
             </Alert>
 
             <div className="space-y-2">
-              <h4 className="font-medium">You&apos;ll need:</h4>
+              <h4 className="font-medium">Bạn sẽ cần:</h4>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>An authenticator app (Google Authenticator, Authy, etc.)</li>
-                <li>Your phone to scan the QR code</li>
+                <li>Ứng dụng authenticator (Google Authenticator, Authy, v.v.)</li>
+                <li>Điện thoại của bạn để quét mã QR</li>
               </ul>
             </div>
 
@@ -169,10 +169,10 @@ export function Setup2FADialog({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
+                  Đang tạo...
                 </>
               ) : (
-                'Generate QR Code'
+                'Tạo mã QR'
               )}
             </Button>
           </div>
@@ -181,9 +181,9 @@ export function Setup2FADialog({
         {step === 'verify' && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <h4 className="font-medium">Step 1: Scan QR Code</h4>
+              <h4 className="font-medium">Bước 1: Quét mã QR</h4>
               <p className="text-sm text-muted-foreground">
-                Open your authenticator app and scan this QR code:
+                Mở ứng dụng authenticator và quét mã QR này:
               </p>
               <div className="flex justify-center p-4 bg-white rounded-lg border">
                 {qrCode && (
@@ -199,7 +199,7 @@ export function Setup2FADialog({
             </div>
 
             <div className="space-y-2">
-              <h4 className="font-medium">Or enter this secret key manually:</h4>
+              <h4 className="font-medium">Hoặc nhập mã bí mật này thủ công:</h4>
               <div className="flex gap-2">
                 <Input
                   value={secret}
@@ -210,7 +210,7 @@ export function Setup2FADialog({
                   variant="outline"
                   size="icon"
                   onClick={copySecret}
-                  title="Copy secret key"
+                  title="Sao chép mã bí mật"
                 >
                   {copied ? (
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -222,9 +222,9 @@ export function Setup2FADialog({
             </div>
 
             <div className="space-y-2">
-              <h4 className="font-medium">Step 2: Enter Verification Code</h4>
+              <h4 className="font-medium">Bước 2: Nhập mã xác thực</h4>
               <Label htmlFor="verification-code">
-                Enter the 6-digit code from your authenticator app:
+                Nhập mã 6 chữ số từ ứng dụng authenticator của bạn:
               </Label>
               <Input
                 id="verification-code"
@@ -249,7 +249,7 @@ export function Setup2FADialog({
                 disabled={loading}
                 className="flex-1"
               >
-                Cancel
+                Hủy
               </Button>
               <Button
                 onClick={handleVerify}
@@ -259,10 +259,10 @@ export function Setup2FADialog({
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verifying...
+                    Đang xác thực...
                   </>
                 ) : (
-                  'Verify & Enable'
+                  'Xác thực & Bật'
                 )}
               </Button>
             </div>

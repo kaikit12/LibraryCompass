@@ -1,21 +1,19 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  doc,
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
-  getDoc,
-  increment,
-} from 'firebase/firestore';
+import { 
+  initializeFirebaseAdmin, 
+  verifyAuthentication, 
+  isAdminOrLibrarian, 
+  getAdminDB 
+} from '@/lib/firebase-admin-utils';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // GET - Fetch reviews for a book
 export async function GET(request: Request) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
     const { searchParams } = new URL(request.url);
     const bookId = searchParams.get('bookId');
     const userId = searchParams.get('userId');
@@ -27,21 +25,21 @@ export async function GET(request: Request) {
       );
     }
 
-    let q;
+    let reviewsSnapshot;
     if (userId) {
       // Get specific user's review for this book
-      q = query(
-        collection(db, 'reviews'),
-        where('bookId', '==', bookId),
-        where('userId', '==', userId)
-      );
+      reviewsSnapshot = await db.collection('reviews')
+        .where('bookId', '==', bookId)
+        .where('userId', '==', userId)
+        .get();
     } else {
       // Get all reviews for this book
-      q = query(collection(db, 'reviews'), where('bookId', '==', bookId));
+      reviewsSnapshot = await db.collection('reviews')
+        .where('bookId', '==', bookId)
+        .get();
     }
 
-    const querySnapshot = await getDocs(q);
-    const reviews = querySnapshot.docs.map((doc) => ({
+    const reviews = reviewsSnapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate() || new Date(),
@@ -61,12 +59,31 @@ export async function GET(request: Request) {
 // POST - Add a new review
 export async function POST(request: Request) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(request);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const { bookId, userId, userName, rating, comment } = await request.json();
 
     if (!bookId || !userId || !userName || !rating) {
       return NextResponse.json(
         { error: 'bookId, userId, userName, and rating are required' },
         { status: 400 }
+      );
+    }
+
+    // Verify user can only create reviews for themselves (unless admin/librarian)
+    if (authenticatedUser.uid !== userId && !isAdminOrLibrarian(authenticatedUser)) {
+      return NextResponse.json(
+        { error: 'Unauthorized access' },
+        { status: 403 }
       );
     }
 
@@ -78,12 +95,10 @@ export async function POST(request: Request) {
     }
 
     // Check if user has already reviewed this book
-    const existingReviewQuery = query(
-      collection(db, 'reviews'),
-      where('bookId', '==', bookId),
-      where('userId', '==', userId)
-    );
-    const existingReviews = await getDocs(existingReviewQuery);
+    const existingReviews = await db.collection('reviews')
+      .where('bookId', '==', bookId)
+      .where('userId', '==', userId)
+      .get();
 
     if (!existingReviews.empty) {
       return NextResponse.json(
@@ -93,12 +108,10 @@ export async function POST(request: Request) {
     }
 
     // Check if user has borrowed this book (optional validation)
-    const borrowalsQuery = query(
-      collection(db, 'borrowals'),
-      where('userId', '==', userId),
-      where('bookId', '==', bookId)
-    );
-    const borrowals = await getDocs(borrowalsQuery);
+    const borrowals = await db.collection('borrowals')
+      .where('userId', '==', userId)
+      .where('bookId', '==', bookId)
+      .get();
 
     if (borrowals.empty) {
       return NextResponse.json(
@@ -114,11 +127,11 @@ export async function POST(request: Request) {
       userName,
       rating,
       comment: comment || '',
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       helpfulCount: 0,
     };
 
-    const reviewRef = await addDoc(collection(db, 'reviews'), reviewData);
+    const reviewRef = await db.collection('reviews').add(reviewData);
 
     // Update book's average rating and review count
     await updateBookRating(bookId);
@@ -140,6 +153,17 @@ export async function POST(request: Request) {
 // PATCH - Update a review
 export async function PATCH(request: Request) {
   try {
+    // 🚨 SECURITY FIX: Initialize Firebase Admin
+    initializeFirebaseAdmin();
+    const db = getAdminDB();
+    
+    // 🚨 SECURITY FIX: Verify authentication
+    const authResult = await verifyAuthentication(request);
+    if (authResult.error) {
+      return authResult.error;
+    }
+    const authenticatedUser = authResult.user!;
+    
     const { reviewId, rating, comment, action } = await request.json();
 
     if (!reviewId) {
@@ -149,17 +173,18 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const reviewRef = doc(db, 'reviews', reviewId);
-    const reviewDoc = await getDoc(reviewRef);
+    const reviewDoc = await db.collection('reviews').doc(reviewId).get();
 
-    if (!reviewDoc.exists()) {
+    if (!reviewDoc.exists) {
       return NextResponse.json({ error: 'Review not found' }, { status: 404 });
     }
 
+    const reviewData = reviewDoc.data()!;
+    
     if (action === 'helpful') {
-      // Increment helpful count
-      await updateDoc(reviewRef, {
-        helpfulCount: increment(1),
+      // Anyone can mark as helpful
+      await db.collection('reviews').doc(reviewId).update({
+        helpfulCount: FieldValue.increment(1),
       });
 
       return NextResponse.json({
@@ -167,7 +192,14 @@ export async function PATCH(request: Request) {
         message: 'Đã đánh dấu hữu ích',
       });
     } else {
-      // Update rating/comment
+      // Update rating/comment - only review owner or admin/librarian can edit
+      if (authenticatedUser.uid !== reviewData.userId && !isAdminOrLibrarian(authenticatedUser)) {
+        return NextResponse.json(
+          { error: 'Unauthorized access' },
+          { status: 403 }
+        );
+      }
+      
       if (!rating || rating < 1 || rating > 5) {
         return NextResponse.json(
           { error: 'Rating must be between 1 and 5' },
@@ -175,14 +207,14 @@ export async function PATCH(request: Request) {
         );
       }
 
-      await updateDoc(reviewRef, {
+      await db.collection('reviews').doc(reviewId).update({
         rating,
         comment: comment || '',
-        updatedAt: serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
 
       // Recalculate book's average rating
-      const bookId = reviewDoc.data().bookId;
+      const bookId = reviewData.bookId;
       await updateBookRating(bookId);
 
       return NextResponse.json({
@@ -201,26 +233,28 @@ export async function PATCH(request: Request) {
 
 // Helper function to update book's average rating
 async function updateBookRating(bookId: string) {
-  const reviewsQuery = query(
-    collection(db, 'reviews'),
-    where('bookId', '==', bookId)
-  );
-  const reviewsSnapshot = await getDocs(reviewsQuery);
+  // 🚨 SECURITY FIX: Initialize Firebase Admin for helper function
+  initializeFirebaseAdmin();
+  const db = getAdminDB();
+  
+  const reviewsSnapshot = await db.collection('reviews')
+    .where('bookId', '==', bookId)
+    .get();
 
   if (reviewsSnapshot.empty) {
     // No reviews, reset to 0
-    await updateDoc(doc(db, 'books', bookId), {
+    await db.collection('books').doc(bookId).update({
       rating: 0,
       reviewCount: 0,
     });
     return;
   }
 
-  const reviews = reviewsSnapshot.docs.map((doc) => doc.data());
-  const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+  const reviews = reviewsSnapshot.docs.map((doc: any) => doc.data());
+  const totalRating = reviews.reduce((sum: number, review: any) => sum + review.rating, 0);
   const averageRating = totalRating / reviews.length;
 
-  await updateDoc(doc(db, 'books', bookId), {
+  await db.collection('books').doc(bookId).update({
     rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
     reviewCount: reviews.length,
   });
